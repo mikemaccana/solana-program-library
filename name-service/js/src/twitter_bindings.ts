@@ -9,13 +9,14 @@ import { createInstruction, deleteInstruction, transferInstruction, updateInstru
 import { NameRegistryState} from "./state";
 
 export const TWITTER_VERIFICATION_AUTHORITY = new PublicKey(
-  "..."
+  "DjXsn34uz8hnC4KLiSkEVNmzqX5ZFP2Q7aErTBH8LWxe"
 );
+
 
 // The address of the name registry that will be a parent to all twitter handle registries,
 // it should be owned by the TWITTER_VERIFICATION_AUTHORITY and it's name is irrelevant
 export const TWITTER_ROOT_PARENT_REGISTRY_KEY = new PublicKey( 
-  "..."   
+  "2kG8A9vJ2DX1iiRB4wwHeSQpS4TYqoEFsYeeePmZhVVn"   
 );
 
 // Signed by the authority and the payer 
@@ -58,8 +59,8 @@ export async function createVerifiedTwitterRegistry(
       verifiedPubkey,
       payerKey,
       hashedVerifiedPubkey,
-      new Numberu64(await connection.getMinimumBalanceForRentExemption(18)),
-      new Numberu32(18), // maximum length of a twitter handle
+      new Numberu64(await connection.getMinimumBalanceForRentExemption(96 + 18)),
+      new Numberu32(96 + 18), // maximum length of a twitter handle
       TWITTER_VERIFICATION_AUTHORITY, // Twitter authority acts as class for all reverse-lookup registries
       undefined,
       undefined,

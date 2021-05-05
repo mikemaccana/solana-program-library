@@ -6,6 +6,7 @@ import { Numberu64, signAndSendTransactionInstructions } from "./utils";
 import { sign } from "tweetnacl";
 import { getHashedName, getNameAccountKey, Numberu32 } from ".";
 import { NameRegistryState } from "./state";
+import { createVerifiedTwitterRegistry } from "./twitter_bindings";
 
 const ENDPOINT = 'https://devnet.solana.com/';
 // const ENDPOINT = 'https://solana-api.projectserum.com/';
@@ -17,13 +18,23 @@ export async function test() {
   );
   let adminAccount = new Account(secretKey);
 
-  let root_name = ".sol";
+  let root_name = "twitter";
+
+  // let create_instruction = await createVerifiedTwitterRegistry(
+  //   connection,
+  //   "@metwit",
+  //   adminAccount.publicKey,
+  //   1000,
+  //   adminAccount.publicKey
+  // );
 
   // let create_instruction = await createNameRegistry(
   //   connection,
   //   root_name,
   //   1000,
   //   adminAccount.publicKey,
+  //   adminAccount.publicKey,
+  //   undefined,
   //   adminAccount.publicKey,
   // );
 
@@ -32,10 +43,9 @@ export async function test() {
   //     connection,
   //     [adminAccount],
   //     adminAccount,
-  //     [create_instruction]
+  //     create_instruction
   //   )
   // );
-
 
   // let input_data = Buffer.from("Du");
   // let updateInstruction = await updateNameRegistryData(
@@ -86,8 +96,9 @@ export async function test() {
   // );
 
   let hashed_root_name = await getHashedName(root_name);
-  let nameAccountKey = await getNameAccountKey(hashed_root_name);
-  console.log(await NameRegistryState.retrieve(connection, nameAccountKey));
+  let nameAccountKey = await getNameAccountKey(hashed_root_name, adminAccount.publicKey);
+  console.log(nameAccountKey.toString());
+  console.log(await (await NameRegistryState.retrieve(connection, nameAccountKey)));
 }
 
 test();

@@ -213,7 +213,7 @@ impl Processor {
         msg!("Beginning processing");
         let instruction = NameRegistryInstruction::try_from_slice(instruction_data)
             .map_err(|_| ProgramError::InvalidInstructionData)?;
-        msg!("Instruction unpack_from_sliceed");
+        msg!("Instruction unpacked");
 
         match instruction {
             NameRegistryInstruction::Create {
