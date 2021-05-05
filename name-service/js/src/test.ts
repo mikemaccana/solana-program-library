@@ -13,7 +13,7 @@ const ENDPOINT = 'https://devnet.solana.com/';
 export async function test() {
   let connection = new Connection(ENDPOINT);
   let secretKey = JSON.parse(
-    (await readFile('/home/lcchy-work/.config/solana/id_devnet.json')).toString()
+    (await readFile('/home/lcchy/.config/solana/id_devnet.json')).toString()
   );
   let adminAccount = new Account(secretKey);
 
