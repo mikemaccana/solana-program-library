@@ -9,7 +9,7 @@ import {
 import assert from "assert";
 import BN from "bn.js";
 import { createHash } from "crypto";
-import { HASH_PREFIX, NAME_PROGRAM_ID } from ".";
+import { HASH_PREFIX, NAME_SERVICE_PROGRAM_ID } from ".";
 import { NameRegistryState} from "./state";
 
 export class Numberu32 extends BN {
@@ -118,7 +118,7 @@ export async function getNameAccountKey(
   }
   let [nameAccountKey, _] = await PublicKey.findProgramAddress(
     seeds,
-    NAME_PROGRAM_ID
+    NAME_SERVICE_PROGRAM_ID
   );
   return nameAccountKey
 }
@@ -128,5 +128,36 @@ export async function getNameOwner(connection: Connection, nameAccountKey: Publi
   if (!nameAccount) {
     throw "Unable to find the given account."
   }
-  return NameRegistryState.retrieve(connection, nameAccountKey); //TODO use borsh-js
+  return NameRegistryState.retrieve(connection, nameAccountKey);
+}
+
+//Taken from Serum
+export async function getFilteredProgramAccounts(
+  connection: Connection,
+  programId: PublicKey,
+  filters,
+): Promise<{ publicKey: PublicKey; accountInfo: AccountInfo<Buffer> }[]> {
+  // @ts-ignore
+  const resp = await connection._rpcRequest('getProgramAccounts', [
+    programId.toBase58(),
+    {
+      commitment: connection.commitment,
+      filters,
+      encoding: 'base64',
+    },
+  ]);
+  if (resp.error) {
+    throw new Error(resp.error.message);
+  }
+  return resp.result.map(
+    ({ pubkey, account: { data, executable, owner, lamports } }) => ({
+      publicKey: new PublicKey(pubkey),
+      accountInfo: {
+        data: Buffer.from(data[0], 'base64'),
+        executable,
+        owner: new PublicKey(owner),
+        lamports,
+      },
+    }),
+  );
 }

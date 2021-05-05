@@ -33,7 +33,7 @@ export class NameRegistryState {
     this.data = Buffer.from(obj.data);
   }
 
-  static async retrieve(
+  public static async retrieve(
     connection: Connection,
     nameAccountKey: PublicKey,
   ): Promise<NameRegistryState> {

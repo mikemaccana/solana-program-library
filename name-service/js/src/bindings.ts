@@ -14,8 +14,8 @@ import { NameRegistryState } from "./state";
 
 ////////////////////////////////////////////////////////////
 
-export const NAME_PROGRAM_ID = new PublicKey(
-  "Gh9eN9nDuS3ysmAkKf4QJ6yBzf3YNqsn6MD8Ms3TsXmA"
+export const NAME_SERVICE_PROGRAM_ID = new PublicKey(
+  "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX"
 );
 export const HASH_PREFIX = "SPL Name Service";
 
@@ -47,6 +47,8 @@ export async function createNameRegistry(
   let hashed_name = await getHashedName(name);
   let nameAccountKey = await getNameAccountKey(hashed_name, nameClass, parentName);
 
+  space += 96; // Accounting for the Registry State Header 
+
   let balance = lamports
     ? lamports
     : await connection.getMinimumBalanceForRentExemption(space);
@@ -57,7 +59,7 @@ export async function createNameRegistry(
   }
 
   let createNameInstr = createInstruction(
-    NAME_PROGRAM_ID,
+    NAME_SERVICE_PROGRAM_ID,
     SystemProgram.programId,
     nameAccountKey,
     nameOwner,
@@ -102,7 +104,7 @@ export async function createNameRegistry(
   }
 
   let updateInstr = updateInstruction(
-    NAME_PROGRAM_ID,
+    NAME_SERVICE_PROGRAM_ID,
     nameAccountKey,
     new Numberu32(offset),
     input_data,
@@ -113,7 +115,7 @@ export async function createNameRegistry(
 }
 
 /**
- * Cahnge the owner of a given name account.
+ * Change the owner of a given name account.
  *
  * @param connection The solana connection object to the RPC node
  * @param name The name of the name account
@@ -142,7 +144,7 @@ export async function createNameRegistry(
   }
 
   let transferInstr = transferInstruction(
-    NAME_PROGRAM_ID,
+    NAME_SERVICE_PROGRAM_ID,
     nameAccountKey,
     newOwner,
     curentNameOwner,
@@ -180,7 +182,7 @@ export async function createNameRegistry(
   }
 
   let changeAuthoritiesInstr = deleteInstruction(
-    NAME_PROGRAM_ID,
+    NAME_SERVICE_PROGRAM_ID,
     nameAccountKey,
     refundTargetKey,
     nameOwner
