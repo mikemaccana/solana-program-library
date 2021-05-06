@@ -1,5 +1,4 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { Schema, serialize } from "@bonfida/borsh-js";
 import { Numberu64, Numberu32 } from "./utils";
 
 export function createInstruction(
@@ -15,7 +14,6 @@ export function createInstruction(
   nameParent?: PublicKey,
   nameParentOwner?: PublicKey
 ): TransactionInstruction {
-
   let buffers = [
     Buffer.from(Int8Array.from([0])),
     new Numberu32(hashed_name.length).toBuffer(),
@@ -95,13 +93,13 @@ export function updateInstruction(
   nameAccountKey: PublicKey,
   offset: Numberu32,
   input_data: Buffer,
-  nameUpdateSigner: PublicKey,
+  nameUpdateSigner: PublicKey
 ): TransactionInstruction {
   let buffers = [
     Buffer.from(Int8Array.from([1])),
     offset.toBuffer(),
     new Numberu32(input_data.length).toBuffer(),
-    input_data
+    input_data,
   ];
 
   const data = Buffer.concat(buffers);
@@ -130,12 +128,9 @@ export function transferInstruction(
   nameAccountKey: PublicKey,
   newOwnerKey: PublicKey,
   currentNameOwnerKey: PublicKey,
-  nameClassKey?: PublicKey,
+  nameClassKey?: PublicKey
 ): TransactionInstruction {
-  let buffers = [
-    Buffer.from(Int8Array.from([2])),
-    newOwnerKey.toBuffer()
-  ];
+  let buffers = [Buffer.from(Int8Array.from([2])), newOwnerKey.toBuffer()];
 
   const data = Buffer.concat(buffers);
 
@@ -171,11 +166,9 @@ export function deleteInstruction(
   nameProgramId: PublicKey,
   nameAccountKey: PublicKey,
   refundTargetKey: PublicKey,
-  nameOwnerKey: PublicKey,
+  nameOwnerKey: PublicKey
 ): TransactionInstruction {
-  let buffers = [
-    Buffer.from(Int8Array.from([3])),
-  ];
+  let buffers = [Buffer.from(Int8Array.from([3]))];
 
   const data = Buffer.concat(buffers);
   let keys = [

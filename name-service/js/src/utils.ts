@@ -10,7 +10,7 @@ import assert from "assert";
 import BN from "bn.js";
 import { createHash } from "crypto";
 import { HASH_PREFIX, NAME_SERVICE_PROGRAM_ID } from ".";
-import { NameRegistryState} from "./state";
+import { NameRegistryState } from "./state";
 
 export class Numberu32 extends BN {
   /**
@@ -92,12 +92,10 @@ export const signAndSendTransactionInstructions = async (
   });
 };
 
-export async function getHashedName(
-  name: string
-): Promise<Buffer> {
+export async function getHashedName(name: string): Promise<Buffer> {
   let input = HASH_PREFIX + name;
-  let buffer = createHash('sha256').update(input, 'utf8').digest();
-  return buffer
+  let buffer = createHash("sha256").update(input, "utf8").digest();
+  return buffer;
 }
 
 export async function getNameAccountKey(
@@ -120,13 +118,16 @@ export async function getNameAccountKey(
     seeds,
     NAME_SERVICE_PROGRAM_ID
   );
-  return nameAccountKey
+  return nameAccountKey;
 }
 
-export async function getNameOwner(connection: Connection, nameAccountKey: PublicKey): Promise<NameRegistryState> {
+export async function getNameOwner(
+  connection: Connection,
+  nameAccountKey: PublicKey
+): Promise<NameRegistryState> {
   let nameAccount = await connection.getAccountInfo(nameAccountKey);
   if (!nameAccount) {
-    throw "Unable to find the given account."
+    throw "Unable to find the given account.";
   }
   return NameRegistryState.retrieve(connection, nameAccountKey);
 }
@@ -135,15 +136,15 @@ export async function getNameOwner(connection: Connection, nameAccountKey: Publi
 export async function getFilteredProgramAccounts(
   connection: Connection,
   programId: PublicKey,
-  filters,
+  filters
 ): Promise<{ publicKey: PublicKey; accountInfo: AccountInfo<Buffer> }[]> {
   // @ts-ignore
-  const resp = await connection._rpcRequest('getProgramAccounts', [
+  const resp = await connection._rpcRequest("getProgramAccounts", [
     programId.toBase58(),
     {
       commitment: connection.commitment,
       filters,
-      encoding: 'base64',
+      encoding: "base64",
     },
   ]);
   if (resp.error) {
@@ -153,11 +154,11 @@ export async function getFilteredProgramAccounts(
     ({ pubkey, account: { data, executable, owner, lamports } }) => ({
       publicKey: new PublicKey(pubkey),
       accountInfo: {
-        data: Buffer.from(data[0], 'base64'),
+        data: Buffer.from(data[0], "base64"),
         executable,
         owner: new PublicKey(owner),
         lamports,
       },
-    }),
+    })
   );
 }
