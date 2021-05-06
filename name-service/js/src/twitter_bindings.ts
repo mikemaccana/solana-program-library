@@ -4,6 +4,8 @@ import {
   Connection,
   SystemProgram,
 } from "@solana/web3.js";
+import bs58 from "bs58";
+import base58 from "bs58";
 import { getFilteredProgramAccounts, getHashedName, getNameAccountKey, NAME_SERVICE_PROGRAM_ID, Numberu32, Numberu64} from ".";
 import { createInstruction, deleteInstruction, transferInstruction, updateInstruction } from "./instructions";
 import { NameRegistryState} from "./state";
@@ -203,13 +205,13 @@ export async function getTwitterHandle(connection: Connection, verifiedPubkey: P
     {
       memcmp: {
         offset: 32,
-        bytes: verifiedPubkey.toBytes(),
+        bytes: verifiedPubkey.toBase58(),
       },
     },
     {
       memcmp: {
         offset: 64,
-        bytes: TWITTER_VERIFICATION_AUTHORITY.toBytes(),
+        bytes: TWITTER_VERIFICATION_AUTHORITY.toBase58(),
       },
     },
   ];
@@ -223,8 +225,8 @@ export async function getTwitterHandle(connection: Connection, verifiedPubkey: P
   if (filteredAccounts.length > 1) {
     throw "Found more than one twitter handle"
   }
-
-  return filteredAccounts[0].accountInfo.data.toString()
+  
+  return bs58.encode(filteredAccounts[0].accountInfo.data)
 }
 
 // Returns the key of the user-facing registry

@@ -6,7 +6,7 @@ import { Numberu64, signAndSendTransactionInstructions } from "./utils";
 import { sign } from "tweetnacl";
 import { getHashedName, getNameAccountKey, Numberu32 } from ".";
 import { NameRegistryState } from "./state";
-import { createVerifiedTwitterRegistry } from "./twitter_bindings";
+import { createVerifiedTwitterRegistry, getTwitterHandle } from "./twitter_bindings";
 
 const ENDPOINT = 'https://devnet.solana.com/';
 // const ENDPOINT = 'https://solana-api.projectserum.com/';
@@ -94,7 +94,7 @@ export async function test() {
   //     [deleteInstruction]
   //   )
   // );
-
+  console.log(await getTwitterHandle(connection, adminAccount.publicKey));
   let hashed_root_name = await getHashedName(root_name);
   let nameAccountKey = await getNameAccountKey(hashed_root_name, adminAccount.publicKey);
   console.log(nameAccountKey.toString());
