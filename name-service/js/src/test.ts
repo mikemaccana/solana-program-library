@@ -95,10 +95,10 @@ export async function test() {
   //   )
   // );
   console.log(await getTwitterHandle(connection, adminAccount.publicKey));
-  let hashed_root_name = await getHashedName(root_name);
-  let nameAccountKey = await getNameAccountKey(hashed_root_name, adminAccount.publicKey);
-  console.log(nameAccountKey.toString());
-  console.log(await (await NameRegistryState.retrieve(connection, nameAccountKey)));
+  // let hashed_root_name = await getHashedName(root_name);
+  // let nameAccountKey = await getNameAccountKey(hashed_root_name, adminAccount.publicKey);
+  // console.log(nameAccountKey.toString());
+  // console.log(await (await NameRegistryState.retrieve(connection, nameAccountKey)));
 }
 
 test();

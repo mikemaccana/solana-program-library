@@ -221,12 +221,13 @@ export async function getTwitterHandle(connection: Connection, verifiedPubkey: P
     NAME_SERVICE_PROGRAM_ID,
     filters
   );
-    
-  if (filteredAccounts.length > 1) {
-    throw "Found more than one twitter handle"
+
+  for (let f of filteredAccounts) {
+    if (f.accountInfo.data.length == 114) {
+      return f.accountInfo.data.slice(96, 114).toString()
+    }
   }
-  
-  return bs58.encode(filteredAccounts[0].accountInfo.data)
+  throw "Could not find the twitter handle"
 }
 
 // Returns the key of the user-facing registry
