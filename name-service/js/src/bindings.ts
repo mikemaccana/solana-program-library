@@ -62,6 +62,7 @@ export async function createNameRegistry(
   let nameParentOwner: PublicKey | undefined;
   if (!!parentName) {
     let parentAccount = await getNameOwner(connection, parentName);
+    nameParentOwner = parentAccount.owner;
   }
 
   let createNameInstr = createInstruction(
