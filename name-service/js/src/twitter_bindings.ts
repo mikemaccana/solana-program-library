@@ -44,7 +44,9 @@ export async function createVerifiedTwitterRegistry(
     TWITTER_ROOT_PARENT_REGISTRY_KEY
   );
 
-  let hashedVerifiedPubkey = await getHashedName(verifiedPubkey.toString());
+  let hashedVerifiedPubkey = await getHashedName(
+    verifiedPubkey.toString().concat(twitterHandle)
+  );
   let reverseRegistryKey = await getNameAccountKey(
     hashedVerifiedPubkey,
     TWITTER_VERIFICATION_AUTHORITY,
@@ -142,7 +144,7 @@ export async function changeVerifiedPubkey(
   );
 
   let currentHashedVerifiedPubkey = await getHashedName(
-    currentVerifiedPubkey.toString()
+    currentVerifiedPubkey.toString().concat(twitterHandle)
   );
   let currentReverseRegistryKey = await getNameAccountKey(
     currentHashedVerifiedPubkey,
@@ -151,7 +153,7 @@ export async function changeVerifiedPubkey(
   );
 
   let newHashedVerifiedPubkey = await getHashedName(
-    newVerifiedPubkey.toString()
+    newVerifiedPubkey.toString().concat(twitterHandle)
   );
   let newReverseRegistryKey = await getNameAccountKey(
     newHashedVerifiedPubkey,
@@ -217,7 +219,9 @@ export async function deleteTwitterRegistry(
     TWITTER_ROOT_PARENT_REGISTRY_KEY
   );
 
-  let hashedVerifiedPubkey = await getHashedName(verifiedPubkey.toString());
+  let hashedVerifiedPubkey = await getHashedName(
+    verifiedPubkey.toString().concat(twitterHandle)
+  );
   let reverseRegistryKey = await getNameAccountKey(
     hashedVerifiedPubkey,
     TWITTER_VERIFICATION_AUTHORITY,

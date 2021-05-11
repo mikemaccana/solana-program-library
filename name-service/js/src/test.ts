@@ -1,20 +1,29 @@
 import { serialize } from "@bonfida/borsh-js";
 import { Connection, Account, PublicKey, AccountInfo } from "@solana/web3.js";
-import { transferNameOwnership, updateNameRegistryData, createNameRegistry, deleteNameRegistry } from "./bindings";
+import {
+  transferNameOwnership,
+  updateNameRegistryData,
+  createNameRegistry,
+  deleteNameRegistry,
+} from "./bindings";
 import { readFile } from "fs/promises";
 import { Numberu64, signAndSendTransactionInstructions } from "./utils";
 import { sign } from "tweetnacl";
 import { getHashedName, getNameAccountKey, Numberu32 } from ".";
 import { NameRegistryState } from "./state";
-import { createVerifiedTwitterRegistry, getTwitterHandle } from "./twitter_bindings";
+import {
+  createVerifiedTwitterRegistry,
+  getTwitterHandle,
+  TWITTER_VERIFICATION_AUTHORITY,
+} from "./twitter_bindings";
 
-const ENDPOINT = 'https://devnet.solana.com/';
+const ENDPOINT = "https://devnet.solana.com/";
 // const ENDPOINT = 'https://solana-api.projectserum.com/';
 
 export async function test() {
   let connection = new Connection(ENDPOINT);
   let secretKey = JSON.parse(
-    (await readFile('/home/lcchy/.config/solana/id_devnet.json')).toString()
+    (await readFile("/home/lcchy/.config/solana/id_devnet.json")).toString()
   );
   let adminAccount = new Account(secretKey);
 
@@ -22,7 +31,7 @@ export async function test() {
 
   // let create_instruction = await createVerifiedTwitterRegistry(
   //   connection,
-  //   "@metwit",
+  //   "LongShort_io",
   //   adminAccount.publicKey,
   //   1000,
   //   adminAccount.publicKey
@@ -80,7 +89,7 @@ export async function test() {
   //   )
   // );
 
-  // let deleteInstruction = await deleteNameRegistry( 
+  // let deleteInstruction = await deleteNameRegistry(
   //   connection,
   //   root_name,
   //   adminAccount.publicKey
@@ -94,11 +103,18 @@ export async function test() {
   //     [deleteInstruction]
   //   )
   // );
-  console.log(await getTwitterHandle(connection, adminAccount.publicKey));
-  // let hashed_root_name = await getHashedName(root_name);
-  // let nameAccountKey = await getNameAccountKey(hashed_root_name, adminAccount.publicKey);
-  // console.log(nameAccountKey.toString());
-  // console.log(await (await NameRegistryState.retrieve(connection, nameAccountKey)));
+
+  // console.log(await getTwitterHandle(connection, adminAccount.publicKey));
+  let hashed_root_name = await getHashedName(root_name);
+  let nameAccountKey = await getNameAccountKey(
+    hashed_root_name,
+    TWITTER_VERIFICATION_AUTHORITY,
+    undefined
+  );
+  console.log(nameAccountKey.toString());
+  console.log(
+    await await NameRegistryState.retrieve(connection, nameAccountKey)
+  );
 }
 
 test();
