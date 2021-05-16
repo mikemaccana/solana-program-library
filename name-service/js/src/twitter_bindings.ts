@@ -207,10 +207,8 @@ export async function changeVerifiedPubkey(
 // Delete the verified registry for a given twitter handle
 // Signed by the verified pubkey
 export async function deleteTwitterRegistry(
-  connection: Connection,
   twitterHandle: string,
-  verifiedPubkey: PublicKey,
-  payerKey: PublicKey
+  verifiedPubkey: PublicKey
 ): Promise<TransactionInstruction[]> {
   let hashedTwitterHandle = await getHashedName(twitterHandle);
   let twitterHandleRegistryKey = await getNameAccountKey(
