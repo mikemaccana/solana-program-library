@@ -141,7 +141,6 @@ export async function transferNameOwnership(
   connection: Connection,
   name: string,
   newOwner: PublicKey,
-  currentNameOwner: PublicKey,
   nameClass?: PublicKey,
   nameParent?: PublicKey
 ): Promise<TransactionInstruction> {
