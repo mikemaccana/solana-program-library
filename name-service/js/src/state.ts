@@ -1,5 +1,5 @@
 import { PublicKey, Connection } from "@solana/web3.js";
-import { Schema } from "@bonfida/borsh-js";
+import { deserializeUnchecked, Schema } from "borsh";
 
 export class NameRegistryState {
   parentName: PublicKey;
@@ -16,7 +16,6 @@ export class NameRegistryState {
           ["parentName", [32]],
           ["owner", [32]],
           ["class", [32]],
-          ["data", ["u8"]],
         ],
       },
     ],
@@ -45,16 +44,14 @@ export class NameRegistryState {
       throw new Error("Invalid name account provided");
     }
 
-    const parentName = nameAccount.data?.slice(0, 32);
-    const owner = nameAccount.data?.slice(32, 64);
-    const className = nameAccount.data?.slice(64, 96);
-    const data = nameAccount.data?.slice(96);
+    let res: NameRegistryState = deserializeUnchecked(
+      this.schema,
+      NameRegistryState,
+      nameAccount.data
+    );
 
-    return new NameRegistryState({
-      parentName,
-      owner,
-      class: className,
-      data,
-    });
+    res.data = nameAccount.data?.slice(96);
+
+    return res;
   }
 }
