@@ -1,5 +1,5 @@
 import { PublicKey, Connection } from "@solana/web3.js";
-import { Schema, deserializeUnchecked } from "@bonfida/borsh-js";
+import { Schema } from "@bonfida/borsh-js";
 
 export class NameRegistryState {
   parentName: PublicKey;
@@ -44,13 +44,6 @@ export class NameRegistryState {
     if (!nameAccount) {
       throw new Error("Invalid name account provided");
     }
-
-    // let res: NameRegistryState = deserializeUnchecked(
-    //   this.schema,
-    //   NameRegistryState,
-    //   nameAccount.data,
-
-    // );
 
     const parentName = nameAccount.data?.slice(0, 32);
     const owner = nameAccount.data?.slice(32, 64);
