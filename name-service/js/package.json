@@ -43,8 +43,7 @@
     "bs58": "4.0.1",
     "buffer-layout": "^1.2.0",
     "core-util-is": "^1.0.2",
-    "crypto": "^1.0.1",
-    "crypto-ts": "^1.0.2",
+    "csv-parser": "^3.0.0",
     "fs": "^0.0.1-security",
     "tweetnacl": "^1.0.3",
     "webpack-dev-server": "^3.11.2"
