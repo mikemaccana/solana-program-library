@@ -64,7 +64,9 @@ export async function createVerifiedTwitterRegistry(
       verifiedPubkey,
       payerKey,
       hashedTwitterHandle,
+      // @ts-ignore
       new Numberu64(await connection.getMinimumBalanceForRentExemption(space)),
+      // @ts-ignore
       new Numberu32(space),
       undefined,
       TWITTER_ROOT_PARENT_REGISTRY_KEY,
@@ -79,8 +81,10 @@ export async function createVerifiedTwitterRegistry(
       payerKey,
       hashedVerifiedPubkey,
       new Numberu64(
+        // @ts-ignore
         await connection.getMinimumBalanceForRentExemption(96 + 18)
       ),
+      // @ts-ignore
       new Numberu32(96 + 18), // maximum length of a twitter handle
       TWITTER_VERIFICATION_AUTHORITY, // Twitter authority acts as class for all reverse-lookup registries
       undefined,
@@ -90,6 +94,7 @@ export async function createVerifiedTwitterRegistry(
     updateInstruction(
       NAME_SERVICE_PROGRAM_ID,
       reverseRegistryKey,
+      // @ts-ignore
       new Numberu32(0),
       Buffer.from(twitterHandle),
       TWITTER_VERIFICATION_AUTHORITY
@@ -118,6 +123,7 @@ export async function changeTwitterRegistryData(
     updateInstruction(
       NAME_SERVICE_PROGRAM_ID,
       twitterHandleRegistryKey,
+      // @ts-ignore
       new Numberu32(offset),
       input_data,
       verifiedPubkey
@@ -185,7 +191,9 @@ export async function changeVerifiedPubkey(
       TWITTER_VERIFICATION_AUTHORITY,
       payerKey,
       newHashedVerifiedPubkey,
+      // @ts-ignore
       new Numberu64(await connection.getMinimumBalanceForRentExemption(18)),
+      // @ts-ignore
       new Numberu32(18), // maximum length of a twitter handle
       TWITTER_VERIFICATION_AUTHORITY, // Twitter authority acts as class for all reverse-lookup registries
       undefined,
@@ -195,6 +203,7 @@ export async function changeVerifiedPubkey(
     updateInstruction(
       NAME_SERVICE_PROGRAM_ID,
       newReverseRegistryKey,
+      // @ts-ignore
       new Numberu32(0),
       Buffer.from(twitterHandle),
       TWITTER_VERIFICATION_AUTHORITY

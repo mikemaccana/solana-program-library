@@ -72,7 +72,9 @@ export async function createNameRegistry(
     nameOwner,
     payerKey,
     hashed_name,
+    // @ts-ignore
     new Numberu64(balance),
+    // @ts-ignore
     new Numberu32(space),
     nameClass,
     parentName,
@@ -118,6 +120,7 @@ export async function updateNameRegistryData(
   let updateInstr = updateInstruction(
     NAME_SERVICE_PROGRAM_ID,
     nameAccountKey,
+    // @ts-ignore
     new Numberu32(offset),
     input_data,
     signer

@@ -16,6 +16,7 @@ export function createInstruction(
 ): TransactionInstruction {
   let buffers = [
     Buffer.from(Int8Array.from([0])),
+    // @ts-ignore
     new Numberu32(hashed_name.length).toBuffer(),
     hashed_name,
     lamports.toBuffer(),
@@ -98,6 +99,7 @@ export function updateInstruction(
   let buffers = [
     Buffer.from(Int8Array.from([1])),
     offset.toBuffer(),
+    // @ts-ignore
     new Numberu32(input_data.length).toBuffer(),
     input_data,
   ];
