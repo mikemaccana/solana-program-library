@@ -7,6 +7,8 @@ export class NameRegistryState {
   class: PublicKey;
   data: Buffer;
 
+  static HEADER_LEN = 96;
+
   static schema: Schema = new Map([
     [
       NameRegistryState,
