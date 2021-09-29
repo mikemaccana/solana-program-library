@@ -1,5 +1,6 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { Numberu64, Numberu32 } from "./utils";
+
+import { Numberu32, Numberu64 } from "./utils";
 
 export function createInstruction(
   nameProgramId: PublicKey,
@@ -14,9 +15,9 @@ export function createInstruction(
   nameParent?: PublicKey,
   nameParentOwner?: PublicKey
 ): TransactionInstruction {
-  let buffers = [
+  const buffers = [
     Buffer.from(Int8Array.from([0])),
-    // @ts-ignore
+    //@ts-ignore
     new Numberu32(hashed_name.length).toBuffer(),
     hashed_name,
     lamports.toBuffer(),
@@ -25,7 +26,7 @@ export function createInstruction(
 
   const data = Buffer.concat(buffers);
 
-  let keys = [
+  const keys = [
     {
       pubkey: systemProgramId,
       isSigner: false,
@@ -48,7 +49,7 @@ export function createInstruction(
     },
   ];
 
-  if (!!nameClassKey) {
+  if (nameClassKey) {
     keys.push({
       pubkey: nameClassKey,
       isSigner: true,
@@ -61,7 +62,7 @@ export function createInstruction(
       isWritable: false,
     });
   }
-  if (!!nameParent) {
+  if (nameParent) {
     keys.push({
       pubkey: nameParent,
       isSigner: false,
@@ -74,7 +75,7 @@ export function createInstruction(
       isWritable: false,
     });
   }
-  if (!!nameParentOwner) {
+  if (nameParentOwner) {
     keys.push({
       pubkey: nameParentOwner,
       isSigner: true,
@@ -96,16 +97,16 @@ export function updateInstruction(
   input_data: Buffer,
   nameUpdateSigner: PublicKey
 ): TransactionInstruction {
-  let buffers = [
+  const buffers = [
     Buffer.from(Int8Array.from([1])),
     offset.toBuffer(),
-    // @ts-ignore
+    //@ts-ignore
     new Numberu32(input_data.length).toBuffer(),
     input_data,
   ];
 
   const data = Buffer.concat(buffers);
-  let keys = [
+  const keys = [
     {
       pubkey: nameAccountKey,
       isSigner: false,
@@ -132,11 +133,11 @@ export function transferInstruction(
   currentNameOwnerKey: PublicKey,
   nameClassKey?: PublicKey
 ): TransactionInstruction {
-  let buffers = [Buffer.from(Int8Array.from([2])), newOwnerKey.toBuffer()];
+  const buffers = [Buffer.from(Int8Array.from([2])), newOwnerKey.toBuffer()];
 
   const data = Buffer.concat(buffers);
 
-  let keys = [
+  const keys = [
     {
       pubkey: nameAccountKey,
       isSigner: false,
@@ -149,7 +150,7 @@ export function transferInstruction(
     },
   ];
 
-  if (!!nameClassKey) {
+  if (nameClassKey) {
     keys.push({
       pubkey: nameClassKey,
       isSigner: true,
@@ -170,10 +171,10 @@ export function deleteInstruction(
   refundTargetKey: PublicKey,
   nameOwnerKey: PublicKey
 ): TransactionInstruction {
-  let buffers = [Buffer.from(Int8Array.from([3]))];
+  const buffers = [Buffer.from(Int8Array.from([3]))];
 
   const data = Buffer.concat(buffers);
-  let keys = [
+  const keys = [
     {
       pubkey: nameAccountKey,
       isSigner: false,

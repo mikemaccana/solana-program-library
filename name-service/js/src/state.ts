@@ -1,13 +1,12 @@
-import { PublicKey, Connection } from "@solana/web3.js";
-import { deserializeUnchecked, serialize, Schema } from "borsh";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { deserializeUnchecked, Schema, serialize } from "borsh";
 
 export class NameRegistryState {
+  static HEADER_LEN = 96;
   parentName: PublicKey;
   owner: PublicKey;
   class: PublicKey;
-  data: Buffer;
-
-  static HEADER_LEN = 96;
+  data: Buffer | undefined;
 
   static schema: Schema = new Map([
     [
@@ -23,15 +22,13 @@ export class NameRegistryState {
     ],
   ]);
   constructor(obj: {
-    parentName: Buffer;
-    owner: Buffer;
-    class: Buffer;
-    data: Buffer;
+    parentName: Uint8Array;
+    owner: Uint8Array;
+    class: Uint8Array;
   }) {
     this.parentName = new PublicKey(obj.parentName);
     this.owner = new PublicKey(obj.owner);
     this.class = new PublicKey(obj.class);
-    this.data = obj.data;
   }
 
   public static async retrieve(
@@ -52,7 +49,7 @@ export class NameRegistryState {
       nameAccount.data
     );
 
-    res.data = nameAccount.data?.slice(96);
+    res.data = nameAccount.data?.slice(this.HEADER_LEN);
 
     return res;
   }

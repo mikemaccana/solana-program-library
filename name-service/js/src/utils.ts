@@ -1,15 +1,17 @@
-import {
-  PublicKey,
-  TransactionInstruction,
-  Connection,
-  Account,
-  Transaction,
-  AccountInfo,
-} from "@solana/web3.js";
 import assert from "assert";
+import createHash from "create-hash";
+
+import {
+  AccountInfo,
+  Connection,
+  Keypair,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import BN from "bn.js";
-import { createHash } from "crypto";
-import { HASH_PREFIX, NAME_SERVICE_PROGRAM_ID } from ".";
+
+import { HASH_PREFIX, NAME_PROGRAM_ID } from "./bindings";
 import { NameRegistryState } from "./state";
 
 export class Numberu32 extends BN {
@@ -32,7 +34,7 @@ export class Numberu32 extends BN {
   /**
    * Construct a Numberu64 from Buffer representation
    */
-  static fromBuffer(buffer): any {
+  static fromBuffer(buffer): BN {
     assert(buffer.length === 4, `Invalid buffer length: ${buffer.length}`);
     return new BN(
       [...buffer]
@@ -64,7 +66,7 @@ export class Numberu64 extends BN {
   /**
    * Construct a Numberu64 from Buffer representation
    */
-  static fromBuffer(buffer): any {
+  static fromBuffer(buffer): BN {
     assert(buffer.length === 8, `Invalid buffer length: ${buffer.length}`);
     return new BN(
       [...buffer]
@@ -79,22 +81,20 @@ export class Numberu64 extends BN {
 export const signAndSendTransactionInstructions = async (
   // sign and send transaction
   connection: Connection,
-  signers: Array<Account>,
-  feePayer: Account,
+  signers: Array<Keypair>,
+  feePayer: Keypair,
   txInstructions: Array<TransactionInstruction>
 ): Promise<string> => {
   const tx = new Transaction();
   tx.feePayer = feePayer.publicKey;
   signers.push(feePayer);
   tx.add(...txInstructions);
-  return await connection.sendTransaction(tx, signers, {
-    preflightCommitment: "single",
-  });
+  return await connection.sendTransaction(tx, signers);
 };
 
 export async function getHashedName(name: string): Promise<Buffer> {
-  let input = HASH_PREFIX + name;
-  let buffer = createHash("sha256").update(input, "utf8").digest();
+  const input = HASH_PREFIX + name;
+  const buffer = createHash("sha256").update(input, "utf8").digest();
   return buffer;
 }
 
@@ -103,20 +103,20 @@ export async function getNameAccountKey(
   nameClass?: PublicKey,
   nameParent?: PublicKey
 ): Promise<PublicKey> {
-  let seeds = [hashed_name];
-  if (!!nameClass) {
+  const seeds = [hashed_name];
+  if (nameClass) {
     seeds.push(nameClass.toBuffer());
   } else {
     seeds.push(Buffer.alloc(32));
   }
-  if (!!nameParent) {
+  if (nameParent) {
     seeds.push(nameParent.toBuffer());
   } else {
     seeds.push(Buffer.alloc(32));
   }
-  let [nameAccountKey, _] = await PublicKey.findProgramAddress(
+  const [nameAccountKey] = await PublicKey.findProgramAddress(
     seeds,
-    NAME_SERVICE_PROGRAM_ID
+    NAME_PROGRAM_ID
   );
   return nameAccountKey;
 }
@@ -125,9 +125,9 @@ export async function getNameOwner(
   connection: Connection,
   nameAccountKey: PublicKey
 ): Promise<NameRegistryState> {
-  let nameAccount = await connection.getAccountInfo(nameAccountKey);
+  const nameAccount = await connection.getAccountInfo(nameAccountKey);
   if (!nameAccount) {
-    throw "Unable to find the given account.";
+    throw new Error("Unable to find the given account.");
   }
   return NameRegistryState.retrieve(connection, nameAccountKey);
 }
@@ -138,25 +138,18 @@ export async function getFilteredProgramAccounts(
   programId: PublicKey,
   filters
 ): Promise<{ publicKey: PublicKey; accountInfo: AccountInfo<Buffer> }[]> {
-  // @ts-ignore
-  const resp = await connection._rpcRequest("getProgramAccounts", [
-    programId.toBase58(),
-    {
-      commitment: connection.commitment,
-      filters,
-      encoding: "base64",
-    },
-  ]);
-  if (resp.error) {
-    throw new Error(resp.error.message);
-  }
-  return resp.result.map(
+  const resp = await connection.getProgramAccounts(programId, {
+    commitment: connection.commitment,
+    filters,
+    encoding: "base64",
+  });
+  return resp.map(
     ({ pubkey, account: { data, executable, owner, lamports } }) => ({
-      publicKey: new PublicKey(pubkey),
+      publicKey: pubkey,
       accountInfo: {
-        data: Buffer.from(data[0], "base64"),
+        data: data,
         executable,
-        owner: new PublicKey(owner),
+        owner: owner,
         lamports,
       },
     })

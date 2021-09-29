@@ -4,25 +4,30 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { Numberu64 } from "./utils";
+
 import {
-  updateInstruction,
-  transferInstruction,
   createInstruction,
   deleteInstruction,
+  transferInstruction,
+  updateInstruction,
 } from "./instructions";
-import { getHashedName, getNameAccountKey, getNameOwner, Numberu32 } from ".";
 import { NameRegistryState } from "./state";
+import { Numberu64 } from "./utils";
+import {
+  getHashedName,
+  getNameAccountKey,
+  getNameOwner,
+  Numberu32,
+} from "./utils";
 
 ////////////////////////////////////////////////////////////
 
-export const NAME_SERVICE_PROGRAM_ID = new PublicKey(
+export const NAME_PROGRAM_ID = new PublicKey(
   "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX"
 );
 export const HASH_PREFIX = "SPL Name Service";
 
 ////////////////////////////////////////////////////////////
-
 /**
  * Creates a name account with the given rent budget, allocated space, owner and class.
  *
@@ -46,35 +51,33 @@ export async function createNameRegistry(
   nameClass?: PublicKey,
   parentName?: PublicKey
 ): Promise<TransactionInstruction> {
-  let hashed_name = await getHashedName(name);
-  let nameAccountKey = await getNameAccountKey(
+  const hashed_name = await getHashedName(name);
+  const nameAccountKey = await getNameAccountKey(
     hashed_name,
     nameClass,
     parentName
   );
 
-  space += 96; // Accounting for the Registry State Header
-
-  let balance = lamports
+  const balance = lamports
     ? lamports
     : await connection.getMinimumBalanceForRentExemption(space);
 
   let nameParentOwner: PublicKey | undefined;
-  if (!!parentName) {
-    let parentAccount = await getNameOwner(connection, parentName);
+  if (parentName) {
+    const parentAccount = await getNameOwner(connection, parentName);
     nameParentOwner = parentAccount.owner;
   }
 
-  let createNameInstr = createInstruction(
-    NAME_SERVICE_PROGRAM_ID,
+  const createNameInstr = createInstruction(
+    NAME_PROGRAM_ID,
     SystemProgram.programId,
     nameAccountKey,
     nameOwner,
     payerKey,
     hashed_name,
-    // @ts-ignore
+    //@ts-ignore
     new Numberu64(balance),
-    // @ts-ignore
+    //@ts-ignore
     new Numberu32(space),
     nameClass,
     parentName,
@@ -102,25 +105,25 @@ export async function updateNameRegistryData(
   nameClass?: PublicKey,
   nameParent?: PublicKey
 ): Promise<TransactionInstruction> {
-  let hashed_name = await getHashedName(name);
-  let nameAccountKey = await getNameAccountKey(
+  const hashed_name = await getHashedName(name);
+  const nameAccountKey = await getNameAccountKey(
     hashed_name,
     nameClass,
     nameParent
   );
 
   let signer: PublicKey;
-  if (!!nameClass) {
+  if (nameClass) {
     signer = nameClass;
   } else {
     signer = (await NameRegistryState.retrieve(connection, nameAccountKey))
       .owner;
   }
 
-  let updateInstr = updateInstruction(
-    NAME_SERVICE_PROGRAM_ID,
+  const updateInstr = updateInstruction(
+    NAME_PROGRAM_ID,
     nameAccountKey,
-    // @ts-ignore
+    //@ts-ignore
     new Numberu32(offset),
     input_data,
     signer
@@ -147,15 +150,15 @@ export async function transferNameOwnership(
   nameClass?: PublicKey,
   nameParent?: PublicKey
 ): Promise<TransactionInstruction> {
-  let hashed_name = await getHashedName(name);
-  let nameAccountKey = await getNameAccountKey(
+  const hashed_name = await getHashedName(name);
+  const nameAccountKey = await getNameAccountKey(
     hashed_name,
     nameClass,
     nameParent
   );
 
   let curentNameOwner: PublicKey;
-  if (!!nameClass) {
+  if (nameClass) {
     curentNameOwner = nameClass;
   } else {
     curentNameOwner = (
@@ -163,8 +166,8 @@ export async function transferNameOwnership(
     ).owner;
   }
 
-  let transferInstr = transferInstruction(
-    NAME_SERVICE_PROGRAM_ID,
+  const transferInstr = transferInstruction(
+    NAME_PROGRAM_ID,
     nameAccountKey,
     newOwner,
     curentNameOwner,
@@ -191,23 +194,23 @@ export async function deleteNameRegistry(
   nameClass?: PublicKey,
   nameParent?: PublicKey
 ): Promise<TransactionInstruction> {
-  let hashed_name = await getHashedName(name);
-  let nameAccountKey = await getNameAccountKey(
+  const hashed_name = await getHashedName(name);
+  const nameAccountKey = await getNameAccountKey(
     hashed_name,
     nameClass,
     nameParent
   );
 
   let nameOwner: PublicKey;
-  if (!!nameClass) {
+  if (nameClass) {
     nameOwner = nameClass;
   } else {
     nameOwner = (await NameRegistryState.retrieve(connection, nameAccountKey))
       .owner;
   }
 
-  let changeAuthoritiesInstr = deleteInstruction(
-    NAME_SERVICE_PROGRAM_ID,
+  const changeAuthoritiesInstr = deleteInstruction(
+    NAME_PROGRAM_ID,
     nameAccountKey,
     refundTargetKey,
     nameOwner
