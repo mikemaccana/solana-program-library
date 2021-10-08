@@ -54,7 +54,7 @@ export class NameRegistryState {
     return res;
   }
 
-  public static async retrieveBatch(
+  static async _retrieveBatch(
     connection: Connection,
     nameAccountKeys: PublicKey[]
   ) {
@@ -71,7 +71,23 @@ export class NameRegistryState {
       res.data = data?.slice(this.HEADER_LEN);
       return res;
     };
-    return nameAccounts.map((e) => fn(e?.data)).filter((e) => !!e);
+    return nameAccounts.map((e) => fn(e?.data));
+  }
+
+  public static async retrieveBatch(
+    connection: Connection,
+    nameAccountKeys: PublicKey[]
+  ) {
+    let result: (NameRegistryState | undefined)[] = [];
+    while (nameAccountKeys.length > 0) {
+      result.push(
+        ...(await this._retrieveBatch(
+          connection,
+          nameAccountKeys.splice(0, 100)
+        ))
+      );
+    }
+    return result;
   }
 }
 
