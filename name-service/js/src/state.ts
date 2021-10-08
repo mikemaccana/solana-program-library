@@ -53,6 +53,26 @@ export class NameRegistryState {
 
     return res;
   }
+
+  public static async retrieveBatch(
+    connection: Connection,
+    nameAccountKeys: PublicKey[]
+  ) {
+    const nameAccounts = await connection.getMultipleAccountsInfo(
+      nameAccountKeys
+    );
+    const fn = (data: Buffer | undefined) => {
+      if (!data) return undefined;
+      const res: NameRegistryState = deserializeUnchecked(
+        this.schema,
+        NameRegistryState,
+        data
+      );
+      res.data = data?.slice(this.HEADER_LEN);
+      return res;
+    };
+    return nameAccounts.map((e) => fn(e?.data)).filter((e) => !!e);
+  }
 }
 
 export class TokenData {
