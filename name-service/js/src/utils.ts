@@ -177,3 +177,16 @@ export async function performReverseLookup(
   let nameLength = new BN(name.data.slice(0, 4), "le").toNumber();
   return name.data.slice(4, 4 + nameLength).toString();
 }
+
+export async function getDNSRecordAddress(
+  nameAccount: PublicKey,
+  type: string
+) {
+  let hashedName = await getHashedName("\0".concat(type));
+  let recordAccount = await getNameAccountKey(
+    hashedName,
+    undefined,
+    nameAccount
+  );
+  return recordAccount;
+}
