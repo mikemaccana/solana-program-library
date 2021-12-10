@@ -14,6 +14,10 @@ import BN from "bn.js";
 import { HASH_PREFIX, NAME_PROGRAM_ID } from "./bindings";
 import { NameRegistryState } from "./state";
 
+export const REVERSE_LOOKUP_CLASS = new PublicKey(
+  "33m47vH6Eav6jr5Ry86XjhRft2jRBLDnDgPSHoquXi2Z"
+);
+
 export class Numberu32 extends BN {
   /**
    * Convert to Buffer representation
@@ -154,4 +158,22 @@ export async function getFilteredProgramAccounts(
       },
     })
   );
+}
+
+export async function performReverseLookup(
+  connection: Connection,
+  nameAccount: PublicKey
+): Promise<string> {
+  let hashedReverseLookup = await getHashedName(nameAccount.toBase58());
+  let reverseLookupAccount = await getNameAccountKey(
+    hashedReverseLookup,
+    REVERSE_LOOKUP_CLASS
+  );
+
+  let name = await NameRegistryState.retrieve(connection, reverseLookupAccount);
+  if (!name.data) {
+    throw "Could not retrieve name data";
+  }
+  let nameLength = new BN(name.data.slice(0, 4), "le").toNumber();
+  return name.data.slice(4, 4 + nameLength).toString();
 }
