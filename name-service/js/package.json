@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "tsc && node --trace-warnings dist/test.js",
     "build": "rm -rf dist && tsc",
-    "prepublish": "tsc",
+    "prepublish": "rm -rf dist && tsc",
     "lint": "yarn pretty && eslint .",
     "lint:fix": "yarn pretty:fix && eslint . --fix",
     "pretty": "prettier --check 'src/*.[jt]s'",
