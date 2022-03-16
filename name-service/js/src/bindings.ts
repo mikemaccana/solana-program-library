@@ -144,6 +144,7 @@ export async function updateNameRegistryData(
  * @param curentNameOwner the current name Owner
  * @param nameClass The class of this name, if it exsists
  * @param nameParent The parent name of this name, if it exists
+ * @param parentOwner Parent name owner
  * @returns
  */
 export async function transferNameOwnership(
@@ -151,7 +152,8 @@ export async function transferNameOwnership(
   name: string,
   newOwner: PublicKey,
   nameClass?: PublicKey,
-  nameParent?: PublicKey
+  nameParent?: PublicKey,
+  parentOwner?: PublicKey
 ): Promise<TransactionInstruction> {
   const hashed_name = await getHashedName(name);
   const nameAccountKey = await getNameAccountKey(
@@ -174,7 +176,9 @@ export async function transferNameOwnership(
     nameAccountKey,
     newOwner,
     curentNameOwner,
-    nameClass
+    nameClass,
+    nameParent,
+    parentOwner
   );
 
   return transferInstr;

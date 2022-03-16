@@ -131,7 +131,9 @@ export function transferInstruction(
   nameAccountKey: PublicKey,
   newOwnerKey: PublicKey,
   currentNameOwnerKey: PublicKey,
-  nameClassKey?: PublicKey
+  nameClassKey?: PublicKey,
+  nameParent?: PublicKey,
+  parentOwner?: PublicKey
 ): TransactionInstruction {
   const buffers = [Buffer.from(Int8Array.from([2])), newOwnerKey.toBuffer()];
 
@@ -144,7 +146,7 @@ export function transferInstruction(
       isWritable: true,
     },
     {
-      pubkey: currentNameOwnerKey,
+      pubkey: parentOwner ? parentOwner : currentNameOwnerKey,
       isSigner: true,
       isWritable: false,
     },
@@ -154,6 +156,21 @@ export function transferInstruction(
     keys.push({
       pubkey: nameClassKey,
       isSigner: true,
+      isWritable: false,
+    });
+  }
+
+  if (parentOwner && nameParent) {
+    if (!nameClassKey) {
+      keys.push({
+        pubkey: PublicKey.default,
+        isSigner: false,
+        isWritable: false,
+      });
+    }
+    keys.push({
+      pubkey: nameParent,
+      isSigner: false,
       isWritable: false,
     });
   }
