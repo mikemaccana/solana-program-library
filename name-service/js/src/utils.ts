@@ -1,4 +1,3 @@
-import assert from "assert";
 import createHash from "create-hash";
 
 import {
@@ -28,7 +27,9 @@ export class Numberu32 extends BN {
     if (b.length === 4) {
       return b;
     }
-    assert(b.length < 4, "Numberu32 too large");
+    if (b.length > 4) {
+      throw new Error("Numberu32 too large");
+    }
 
     const zeroPad = Buffer.alloc(4);
     b.copy(zeroPad);
@@ -39,7 +40,10 @@ export class Numberu32 extends BN {
    * Construct a Numberu64 from Buffer representation
    */
   static fromBuffer(buffer): BN {
-    assert(buffer.length === 4, `Invalid buffer length: ${buffer.length}`);
+    if (buffer.length !== 4) {
+      throw new Error(`Invalid buffer length: ${buffer.length}`);
+    }
+
     return new BN(
       [...buffer]
         .reverse()
@@ -60,7 +64,10 @@ export class Numberu64 extends BN {
     if (b.length === 8) {
       return b;
     }
-    assert(b.length < 8, "Numberu64 too large");
+
+    if (b.length > 8) {
+      throw new Error("Numberu64 too large");
+    }
 
     const zeroPad = Buffer.alloc(8);
     b.copy(zeroPad);
@@ -71,7 +78,9 @@ export class Numberu64 extends BN {
    * Construct a Numberu64 from Buffer representation
    */
   static fromBuffer(buffer): BN {
-    assert(buffer.length === 8, `Invalid buffer length: ${buffer.length}`);
+    if (buffer.length !== 8) {
+      throw new Error(`Invalid buffer length: ${buffer.length}`);
+    }
     return new BN(
       [...buffer]
         .reverse()
