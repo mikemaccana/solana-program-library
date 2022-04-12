@@ -1,5 +1,3 @@
-import createHash from "create-hash/browser";
-
 import {
   AccountInfo,
   Connection,
@@ -9,7 +7,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import BN from "bn.js";
-
+import { ethers } from "ethers";
 import { HASH_PREFIX, NAME_PROGRAM_ID } from "./bindings";
 import { NameRegistryState } from "./state";
 
@@ -107,8 +105,8 @@ export const signAndSendTransactionInstructions = async (
 
 export async function getHashedName(name: string): Promise<Buffer> {
   const input = HASH_PREFIX + name;
-  const buffer = createHash("sha256").update(input, "utf8").digest();
-  return buffer;
+  const str = ethers.utils.sha256(Buffer.from(input, "utf8")).split("0x")[1];
+  return Buffer.from(str, "hex");
 }
 
 export async function getNameAccountKey(

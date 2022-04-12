@@ -48,8 +48,7 @@ export const retrieveNftOwner = async (
     }
 
     return new PublicKey(info.data.slice(32, 64));
-  } catch (err) {
-    console.log(err);
+  } catch {
     return undefined;
   }
 };
