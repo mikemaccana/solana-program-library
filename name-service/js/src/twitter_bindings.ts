@@ -436,7 +436,7 @@ export async function createReverseTwitterRegistry(
       new Numberu64(
         //@ts-ignore
         await connection.getMinimumBalanceForRentExemption(
-          reverseTwitterRegistryStateBuff.length
+          reverseTwitterRegistryStateBuff.length + NameRegistryState.HEADER_LEN
         )
       ),
       //@ts-ignore
