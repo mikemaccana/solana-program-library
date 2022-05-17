@@ -53,6 +53,10 @@ export async function createVerifiedTwitterRegistry(
     TWITTER_ROOT_PARENT_REGISTRY_KEY
   );
 
+  const lamports = await connection.getMinimumBalanceForRentExemption(
+    space + NameRegistryState.HEADER_LEN
+  );
+
   let instructions = [
     createInstruction(
       NAME_PROGRAM_ID,
@@ -62,7 +66,7 @@ export async function createVerifiedTwitterRegistry(
       payerKey,
       hashedTwitterHandle,
       //@ts-ignore
-      new Numberu64(await connection.getMinimumBalanceForRentExemption(space)),
+      new Numberu64(lamports),
       //@ts-ignore
       new Numberu32(space),
       undefined,
