@@ -5,6 +5,7 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
+  MemcmpFilter,
 } from "@solana/web3.js";
 import BN from "bn.js";
 import { ethers } from "ethers";
@@ -232,3 +233,31 @@ export async function performReverseLookupBatch(
     return name.data.slice(4, 4 + nameLength).toString();
   });
 }
+
+export const findSubdomains = async (
+  connection: Connection,
+  parentKey: PublicKey
+): Promise<string[]> => {
+  const filters: MemcmpFilter[] = [
+    {
+      memcmp: {
+        offset: 0,
+        bytes: parentKey.toBase58(),
+      },
+    },
+    {
+      memcmp: {
+        offset: 64,
+        bytes: REVERSE_LOOKUP_CLASS.toBase58(),
+      },
+    },
+  ];
+
+  const result = await connection.getProgramAccounts(NAME_PROGRAM_ID, {
+    filters,
+  });
+
+  return result.map((e) =>
+    e.account.data.slice(97).toString("utf-8")?.split("\0").join("")
+  );
+};
