@@ -3,13 +3,14 @@ import {
   PublicKey,
   SystemProgram,
   TransactionInstruction,
+  SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
-
 import {
   createInstruction,
   deleteInstruction,
   transferInstruction,
   updateInstruction,
+  createV2Instruction,
 } from "./instructions";
 import { NameRegistryState } from "./state";
 import { Numberu64 } from "./utils";
@@ -26,6 +27,19 @@ export const NAME_PROGRAM_ID = new PublicKey(
   "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX"
 );
 export const HASH_PREFIX = "SPL Name Service";
+
+export const REGISTER_PROGRAM_ID = new PublicKey(
+  "jCebN34bUfdeUYJT13J1yG16XWQpt5PDx6Mse9GUqhR"
+);
+export const PYTH_FIDDA_PRICE_ACC = new PublicKey(
+  "ETp9eKXVv1dWwHSpsXRUuXHmw24PwRkttCGVgpZEY9zF"
+);
+export const BONFIDA_FIDA_BNB = new PublicKey(
+  "AUoZ3YAhV3b2rZeEH93UMZHXUZcTramBvb4d9YEVySkc"
+);
+export const ROOT_DOMAIN_ACCOUNT = new PublicKey(
+  "58PwtjSDuFHuUkYjH9BYnnQKHfwo9reZhC2zMJv9JPkx"
+);
 
 ////////////////////////////////////////////////////////////
 /**
@@ -225,3 +239,57 @@ export async function deleteNameRegistry(
 
   return changeAuthoritiesInstr;
 }
+
+/**
+ * This function can be used to register a .sol domain
+ * @param name The domain name to register e.g bonfida if you want to register bonfida.sol
+ * @param space The domain name account size (max 10kB)
+ * @param buyer The public key of the buyer
+ * @param buyerTokenAccount The buyer FIDA token account
+ * @returns
+ */
+export const registerDomainName = async (
+  name: string,
+  space: number,
+  buyer: PublicKey,
+  buyerTokenAccount: PublicKey
+) => {
+  const [centralState] = await PublicKey.findProgramAddress(
+    [REGISTER_PROGRAM_ID.toBuffer()],
+    REGISTER_PROGRAM_ID
+  );
+
+  const hashed = await getHashedName(name);
+  const nameAccount = await getNameAccountKey(
+    hashed,
+    undefined,
+    ROOT_DOMAIN_ACCOUNT
+  );
+
+  const hashedReverseLookup = await getHashedName(nameAccount.toBase58());
+  const reverseLookupAccount = await getNameAccountKey(
+    hashedReverseLookup,
+    centralState
+  );
+
+  const [derived_state] = await PublicKey.findProgramAddress(
+    [nameAccount.toBuffer()],
+    REGISTER_PROGRAM_ID
+  );
+
+  const ix = new createV2Instruction({ name, space }).getInstruction(
+    REGISTER_PROGRAM_ID,
+    SYSVAR_RENT_PUBKEY,
+    NAME_PROGRAM_ID,
+    ROOT_DOMAIN_ACCOUNT,
+    nameAccount,
+    reverseLookupAccount,
+    centralState,
+    buyer,
+    buyerTokenAccount,
+    BONFIDA_FIDA_BNB,
+    derived_state
+  );
+
+  return [[], [ix]];
+};

@@ -1,6 +1,12 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
-
+import {
+  PublicKey,
+  TransactionInstruction,
+  SystemProgram,
+} from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Numberu32, Numberu64 } from "./utils";
+import { Schema, serialize } from "borsh";
+import { PYTH_FIDDA_PRICE_ACC } from "./bindings";
 
 export function createInstruction(
   nameProgramId: PublicKey,
@@ -214,4 +220,123 @@ export function deleteInstruction(
     programId: nameProgramId,
     data,
   });
+}
+
+export class createV2Instruction {
+  tag: number;
+  name: string;
+  space: number;
+
+  static schema: Schema = new Map([
+    [
+      createV2Instruction,
+      {
+        kind: "struct",
+        fields: [
+          ["tag", "u8"],
+          ["name", "string"],
+          ["space", "u32"],
+        ],
+      },
+    ],
+  ]);
+
+  constructor(obj: { name: string; space: number }) {
+    this.tag = 9;
+    this.name = obj.name;
+    this.space = obj.space;
+  }
+
+  serialize(): Uint8Array {
+    return serialize(createV2Instruction.schema, this);
+  }
+
+  getInstruction(
+    programId: PublicKey,
+    rentSysvarAccount: PublicKey,
+    nameProgramId: PublicKey,
+    rootDomain: PublicKey,
+    nameAccount: PublicKey,
+    reverseLookupAccount: PublicKey,
+    centralState: PublicKey,
+    buyer: PublicKey,
+    buyerTokenAccount: PublicKey,
+    fidaVault: PublicKey,
+    state: PublicKey
+  ): TransactionInstruction {
+    const data = Buffer.from(this.serialize());
+    const keys = [
+      {
+        pubkey: rentSysvarAccount,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: nameProgramId,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: rootDomain,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: nameAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: reverseLookupAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: SystemProgram.programId,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: centralState,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: buyer,
+        isSigner: true,
+        isWritable: true,
+      },
+      {
+        pubkey: buyerTokenAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: PYTH_FIDDA_PRICE_ACC,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: fidaVault,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: state,
+        isSigner: false,
+        isWritable: false,
+      },
+    ];
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data,
+    });
+  }
 }
