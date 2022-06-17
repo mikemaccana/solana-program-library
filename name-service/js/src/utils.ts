@@ -8,7 +8,7 @@ import {
   MemcmpFilter,
 } from "@solana/web3.js";
 import BN from "bn.js";
-import { ethers } from "ethers";
+import { sha256 } from "@ethersproject/sha2";
 import { HASH_PREFIX, NAME_PROGRAM_ID } from "./bindings";
 import { NameRegistryState } from "./state";
 
@@ -106,7 +106,7 @@ export const signAndSendTransactionInstructions = async (
 
 export async function getHashedName(name: string): Promise<Buffer> {
   const input = HASH_PREFIX + name;
-  const str = ethers.utils.sha256(Buffer.from(input, "utf8")).split("0x")[1];
+  const str = sha256(Buffer.from(input, "utf8")).slice(2);
   return Buffer.from(str, "hex");
 }
 
