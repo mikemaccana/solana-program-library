@@ -7,7 +7,7 @@ jest.setTimeout(20_000);
 const connection = new Connection(clusterApiUrl("mainnet-beta"));
 const domain = "🍍";
 
-test("Records", () => {
+test("Records", async () => {
   record.getIpfsRecord(connection, domain).then((e) => {
     expect(e.data?.toString()).toBe(
       "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR"

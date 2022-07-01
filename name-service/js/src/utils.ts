@@ -83,16 +83,12 @@ export async function performReverseLookupBatch(
   connection: Connection,
   nameAccounts: PublicKey[]
 ): Promise<(string | undefined)[]> {
-  const [centralState] = await PublicKey.findProgramAddress(
-    [NAME_PROGRAM_ID.toBuffer()],
-    NAME_PROGRAM_ID
-  );
   let reverseLookupAccounts: PublicKey[] = [];
   for (let nameAccount of nameAccounts) {
     const hashedReverseLookup = await getHashedName(nameAccount.toBase58());
     const reverseLookupAccount = await getNameAccountKey(
       hashedReverseLookup,
-      centralState
+      REVERSE_LOOKUP_CLASS
     );
     reverseLookupAccounts.push(reverseLookupAccount);
   }
