@@ -9,3 +9,5 @@ export * from "./nft";
 export * from "./favorite-domain";
 export * from "./constants";
 export * from "./int";
+export * from "./record";
+export * from "./types/record";
