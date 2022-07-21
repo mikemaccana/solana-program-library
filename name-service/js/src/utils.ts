@@ -155,13 +155,14 @@ const _derive = async (
  * @param domain The domain to compute the public key for (e.g `bonfida.sol`, `dex.bonfida.sol`)
  * @returns
  */
-export const getDomainKey = async (domain: string) => {
+export const getDomainKey = async (domain: string, record = false) => {
   if (domain.endsWith(".sol")) {
     domain = domain.slice(0, -4);
   }
   const splitted = domain.split(".");
   if (splitted.length === 2) {
-    const sub = "\0".concat(splitted[0]);
+    const prefix = Buffer.from([record ? 1 : 0]).toString();
+    const sub = prefix.concat(splitted[0]);
     const { pubkey: parentKey } = await _derive(splitted[1]);
     const result = await _derive(sub, parentKey);
     return { ...result, isSub: true, parent: parentKey };

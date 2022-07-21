@@ -15,7 +15,7 @@ export const getRecord = async (
   domain: string,
   record: Record
 ) => {
-  const { pubkey } = await getDomainKey(record + "." + domain);
+  const { pubkey } = await getDomainKey(record + "." + domain, true);
   let { registry } = await NameRegistryState.retrieve(connection, pubkey);
 
   // Remove trailling 0s
