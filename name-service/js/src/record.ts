@@ -175,3 +175,13 @@ export const getTelegramRecord = async (
 ) => {
   return await getRecord(connection, domain, Record.Telegram);
 };
+
+/**
+ * This function can be used to retrieve the pic record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+export const getPicRecord = async (connection: Connection, domain: string) => {
+  return await getRecord(connection, domain, Record.Pic);
+};
