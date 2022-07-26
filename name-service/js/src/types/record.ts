@@ -16,4 +16,5 @@ export enum Record {
   Twitter = "twitter",
   Telegram = "telegram",
   Pic = "pic",
+  SHDW = "SHDW",
 }

@@ -185,3 +185,13 @@ export const getTelegramRecord = async (
 export const getPicRecord = async (connection: Connection, domain: string) => {
   return await getRecord(connection, domain, Record.Pic);
 };
+
+/**
+ * This function can be used to retrieve the SHDW record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+export const getShdwRecord = async (connection: Connection, domain: string) => {
+  return await getRecord(connection, domain, Record.SHDW);
+};
