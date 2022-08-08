@@ -195,3 +195,15 @@ export const getPicRecord = async (connection: Connection, domain: string) => {
 export const getShdwRecord = async (connection: Connection, domain: string) => {
   return await getRecord(connection, domain, Record.SHDW);
 };
+
+/**
+ * This function can be used to retrieve the SOL record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+ export const getSolRecord = async (connection: Connection, domain: string) => {
+  return await getRecord(connection, domain, Record.SOL);
+};
+
+

@@ -4,6 +4,7 @@
 export enum Record {
   IPFS = "IPFS",
   ARWV = "ARWV",
+  SOL = "SOL",
   ETH = "ETH",
   BTC = "BTC",
   LTC = "LTC",
