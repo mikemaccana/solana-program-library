@@ -11,3 +11,4 @@ export * from "./constants";
 export * from "./int";
 export * from "./record";
 export * from "./types/record";
+export * from "./resolve";
