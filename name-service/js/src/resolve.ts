@@ -17,11 +17,15 @@ export const resolve = async (connection: Connection, domain: string) => {
 
   try {
     const solRecord = await getSolRecord(connection, domain);
-    const base58 = solRecord.data?.toString();
-    if (!base58) {
-      throw new Error("SOL record is not set");
+    if (solRecord.data?.length !== 64) {
+      throw new Error("Invalid SOL record data");
     }
-    return new PublicKey(base58);
+
+    if (registry.owner.toBuffer().compare(solRecord.data.slice(32, 64)) !== 0) {
+      throw new Error("SOL record owner mismatch");
+    }
+
+    return new PublicKey(solRecord.data.slice(0, 32));
   } catch (err) {
     console.log(err);
   }

@@ -18,5 +18,9 @@ test("Resolve domains", async () => {
 
   domain = "boston.sol";
   owner = await resolve(connection, domain);
-  expect(owner.toBase58()).toBe("78j3JUUd2nrA52Srx2zrEQ8jez7FDqnAETMAVEXDctB7");
+  expect(owner.toBase58()).toBe("J5TyWD7cozDdehGdjtrAF7sN5SVvqjfNCffKC6EgmRUU");
+
+  domain = "0x108.sol";
+  owner = await resolve(connection, domain);
+  expect(owner.toBase58()).toBe("CnNHzcp7L4jKiA2Rsca3hZyVwSmoqXaT8wGwzS8WvvB2");
 });
