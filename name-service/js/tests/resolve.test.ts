@@ -1,5 +1,5 @@
 import { test, jest } from "@jest/globals";
-import { Connection, clusterApiUrl, PublicKey } from "@solana/web3.js";
+import { Connection, clusterApiUrl } from "@solana/web3.js";
 import { resolve } from "../src/resolve";
 
 jest.setTimeout(5_000);
@@ -18,7 +18,7 @@ test("Resolve domains", async () => {
 
   domain = "boston.sol";
   owner = await resolve(connection, domain);
-  expect(owner.toBase58()).toBe("5vUBtmmHjSfpY1h24XhzEjRKjDyK5jNL9gT2BfM3wcnb");
+  expect(owner.toBase58()).toBe("J6QDztZCegYTWnGUYtjqVS9d7AZoS43UbEQmMcdGeP5s");
 
   domain = "0x108.sol";
   owner = await resolve(connection, domain);
