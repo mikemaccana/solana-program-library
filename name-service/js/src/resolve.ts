@@ -2,7 +2,34 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { getSolRecord } from "./record";
 import { getDomainKey } from "./utils";
 import { NameRegistryState } from "./state";
+import { sign } from "tweetnacl";
+import { Record } from "./types/record";
 
+/**
+ * This function can be used to verify the validity of a SOL record
+ * @param record The record data to verify
+ * @param signedRecord The signed data
+ * @param pubkey The public key of the signer
+ * @returns
+ */
+export const checkSolRecord = (
+  record: Buffer,
+  signedRecord: Buffer,
+  pubkey: PublicKey
+) => {
+  return sign.detached.verify(
+    new Uint8Array(record),
+    new Uint8Array(signedRecord),
+    pubkey.toBytes()
+  );
+};
+
+/**
+ * This function can be used to resolve a domain name to transfer funds
+ * @param connection The Solana RPC connection object
+ * @param domain The domain to resolve
+ * @returns
+ */
 export const resolve = async (connection: Connection, domain: string) => {
   const { pubkey } = await getDomainKey(domain);
 
@@ -16,13 +43,21 @@ export const resolve = async (connection: Connection, domain: string) => {
   }
 
   try {
+    const recordKey = await getDomainKey(Record.SOL + "." + domain, true);
     const solRecord = await getSolRecord(connection, domain);
-    if (solRecord.data?.length !== 64) {
+
+    if (solRecord.data?.length !== 96) {
       throw new Error("Invalid SOL record data");
     }
 
-    if (registry.owner.toBuffer().compare(solRecord.data.slice(32, 64)) !== 0) {
-      throw new Error("SOL record owner mismatch");
+    const valid = checkSolRecord(
+      Buffer.concat([solRecord.data.slice(0, 32), recordKey.pubkey.toBuffer()]),
+      solRecord.data.slice(32),
+      registry.owner
+    );
+
+    if (!valid) {
+      throw new Error("Signature invalid");
     }
 
     return new PublicKey(solRecord.data.slice(0, 32));
