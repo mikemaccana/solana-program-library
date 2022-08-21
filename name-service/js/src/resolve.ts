@@ -13,15 +13,11 @@ import { Record } from "./types/record";
  * @returns
  */
 export const checkSolRecord = (
-  record: Buffer,
-  signedRecord: Buffer,
+  record: Uint8Array,
+  signedRecord: Uint8Array,
   pubkey: PublicKey
 ) => {
-  return sign.detached.verify(
-    new Uint8Array(record),
-    new Uint8Array(signedRecord),
-    pubkey.toBytes()
-  );
+  return sign.detached.verify(record, signedRecord, pubkey.toBytes());
 };
 
 /**
@@ -50,8 +46,15 @@ export const resolve = async (connection: Connection, domain: string) => {
       throw new Error("Invalid SOL record data");
     }
 
+    const encoder = new TextEncoder();
+    const expectedBuffer = Buffer.concat([
+      solRecord.data.slice(0, 32),
+      recordKey.pubkey.toBuffer(),
+    ]);
+    const expected = encoder.encode(expectedBuffer.toString("hex"));
+
     const valid = checkSolRecord(
-      Buffer.concat([solRecord.data.slice(0, 32), recordKey.pubkey.toBuffer()]),
+      expected,
       solRecord.data.slice(32),
       registry.owner
     );

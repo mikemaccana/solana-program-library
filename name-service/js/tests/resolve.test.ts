@@ -2,7 +2,7 @@ import { test, jest } from "@jest/globals";
 import { Connection, clusterApiUrl } from "@solana/web3.js";
 import { resolve } from "../src/resolve";
 
-jest.setTimeout(5_000);
+jest.setTimeout(50_000);
 
 const connection = new Connection(clusterApiUrl("mainnet-beta"));
 
@@ -18,7 +18,7 @@ test("Resolve domains", async () => {
 
   domain = "boston.sol";
   owner = await resolve(connection, domain);
-  expect(owner.toBase58()).toBe("J6QDztZCegYTWnGUYtjqVS9d7AZoS43UbEQmMcdGeP5s");
+  expect(owner.toBase58()).toBe("HKKp49qGWXd639QsuH7JiLijfVW5UtCVY4s1n2HANwEA");
 
   domain = "0x108.sol";
   owner = await resolve(connection, domain);
