@@ -202,8 +202,19 @@ export const getShdwRecord = async (connection: Connection, domain: string) => {
  * @param domain The .sol domain name
  * @returns
  */
- export const getSolRecord = async (connection: Connection, domain: string) => {
+export const getSolRecord = async (connection: Connection, domain: string) => {
   return await getRecord(connection, domain, Record.SOL);
 };
 
-
+/**
+ * This function can be used to retrieve the POINT record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+export const getPointRecord = async (
+  connection: Connection,
+  domain: string
+) => {
+  return await getRecord(connection, domain, Record.POINT);
+};
