@@ -11,6 +11,7 @@ import {
   transferInstruction,
   updateInstruction,
   createV2Instruction,
+  createReverseInstruction,
 } from "./instructions";
 import { NameRegistryState } from "./state";
 import { Numberu64, Numberu32 } from "./int";
@@ -21,7 +22,6 @@ import {
   REGISTER_PROGRAM_ID,
   BONFIDA_FIDA_BNB,
 } from "./constants";
-
 
 /**
  * Creates a name account with the given rent budget, allocated space, owner and class.
@@ -273,4 +273,51 @@ export const registerDomainName = async (
   );
 
   return [[], [ix]];
+};
+
+/**
+ *
+ * @param nameAccount The name account to create the reverse account for
+ * @param name The name of the domain
+ * @param feePayer The fee payer of the transaction
+ * @param parentName The parent name account
+ * @param parentNameOwner The parent name owner
+ * @returns
+ */
+export const createReverseName = async (
+  nameAccount: PublicKey,
+  name: string,
+  feePayer: PublicKey,
+  parentName?: PublicKey,
+  parentNameOwner?: PublicKey
+) => {
+  let [centralState] = await PublicKey.findProgramAddress(
+    [REGISTER_PROGRAM_ID.toBuffer()],
+    REGISTER_PROGRAM_ID
+  );
+
+  let hashedReverseLookup = await getHashedName(nameAccount.toBase58());
+  let reverseLookupAccount = await getNameAccountKey(
+    hashedReverseLookup,
+    centralState,
+    parentName
+  );
+
+  let initCentralStateInstruction = new createReverseInstruction({
+    name,
+  }).getInstruction(
+    REGISTER_PROGRAM_ID,
+    SYSVAR_RENT_PUBKEY,
+    NAME_PROGRAM_ID,
+    ROOT_DOMAIN_ACCOUNT,
+    reverseLookupAccount,
+    centralState,
+    feePayer,
+    parentName,
+    parentNameOwner
+  );
+
+  let instructions = [initCentralStateInstruction];
+
+  return [[], instructions];
 };

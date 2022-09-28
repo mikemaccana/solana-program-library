@@ -340,3 +340,103 @@ export class createV2Instruction {
     });
   }
 }
+
+export class createReverseInstruction {
+  tag: number;
+  name: string;
+
+  static schema: Schema = new Map([
+    [
+      createReverseInstruction,
+      {
+        kind: "struct",
+        fields: [
+          ["tag", "u8"],
+          ["name", "string"],
+        ],
+      },
+    ],
+  ]);
+
+  constructor(obj: { name: string }) {
+    this.tag = 5;
+    this.name = obj.name;
+  }
+
+  serialize(): Uint8Array {
+    return serialize(createReverseInstruction.schema, this);
+  }
+
+  getInstruction(
+    programId: PublicKey,
+    rentSysvarAccount: PublicKey,
+    namingServiceProgram: PublicKey,
+    rootDomain: PublicKey,
+    reverseLookupAccount: PublicKey,
+    centralStateAccount: PublicKey,
+    feePayer: PublicKey,
+    parentName?: PublicKey,
+    parentNameOwner?: PublicKey
+  ): TransactionInstruction {
+    const data = Buffer.from(this.serialize());
+    let keys = [
+      {
+        pubkey: rentSysvarAccount,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: namingServiceProgram,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: rootDomain,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: reverseLookupAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: PublicKey.default,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: centralStateAccount,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: feePayer,
+        isSigner: true,
+        isWritable: true,
+      },
+    ];
+
+    if (parentName) {
+      if (!parentNameOwner) {
+        throw new Error("Missing parent name owner");
+      }
+      keys.push({
+        pubkey: parentName,
+        isSigner: false,
+        isWritable: true,
+      });
+      keys.push({
+        pubkey: parentNameOwner,
+        isSigner: true,
+        isWritable: false,
+      });
+    }
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data,
+    });
+  }
+}
