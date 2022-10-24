@@ -42,7 +42,7 @@ export const resolve = async (connection: Connection, domain: string) => {
     const recordKey = await getDomainKey(Record.SOL + "." + domain, true);
     const solRecord = await getSolRecord(connection, domain);
 
-    if (solRecord.data?.length !== 96) {
+    if (!solRecord.data) {
       throw new Error("Invalid SOL record data");
     }
 
@@ -65,6 +65,11 @@ export const resolve = async (connection: Connection, domain: string) => {
 
     return new PublicKey(solRecord.data.slice(0, 32));
   } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === "FetchError") {
+        throw err;
+      }
+    }
     console.log(err);
   }
 
