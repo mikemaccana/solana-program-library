@@ -2,6 +2,7 @@ import { Record } from "./types/record";
 import { Connection } from "@solana/web3.js";
 import { getDomainKey } from "./utils";
 import { NameRegistryState } from "./state";
+import { SOL_RECORD_SIG_LEN } from "./constants";
 
 /**
  * This function can be used to retrieve a specified record for the given domain name
@@ -19,7 +20,8 @@ export const getRecord = async (
   let { registry } = await NameRegistryState.retrieve(connection, pubkey);
 
   // Remove trailling 0s
-  const idx = registry.data?.indexOf(0x00);
+  const idx =
+    record === Record.SOL ? SOL_RECORD_SIG_LEN : registry.data?.indexOf(0x00);
   registry.data = registry.data?.slice(0, idx);
 
   return registry;

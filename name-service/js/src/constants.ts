@@ -60,3 +60,8 @@ export const TWITTER_VERIFICATION_AUTHORITY = new PublicKey(
 export const TWITTER_ROOT_PARENT_REGISTRY_KEY = new PublicKey(
   "4YcexoW3r78zz16J2aqmukBLRwGq6rAvWzJpkYAXqebv"
 );
+
+/**
+ * The length of the SOL record signature
+ */
+export const SOL_RECORD_SIG_LEN = 96;

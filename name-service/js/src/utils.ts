@@ -166,7 +166,19 @@ export const getDomainKey = async (domain: string, record = false) => {
     const { pubkey: parentKey } = await _derive(splitted[1]);
     const result = await _derive(sub, parentKey);
     return { ...result, isSub: true, parent: parentKey };
-  } else if (splitted.length > 2) {
+  } else if (splitted.length === 3 && record) {
+    // Parent key
+    const { pubkey: parentKey } = await _derive(splitted[2]);
+    // Sub domain
+    const { pubkey: subKey } = await _derive(
+      "\0".concat(splitted[1]),
+      parentKey
+    );
+    // Sub record
+    const recordPrefix = Buffer.from([1]).toString();
+    const result = await _derive(recordPrefix.concat(splitted[0]), subKey);
+    return { ...result, isSub: true, parent: parentKey, isSubRecord: true };
+  } else if (splitted.length >= 3) {
     throw new Error("Invalid derivation input");
   }
   const result = await _derive(domain, ROOT_DOMAIN_ACCOUNT);

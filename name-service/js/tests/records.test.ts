@@ -72,3 +72,11 @@ test("Records", async () => {
     .getTelegramRecord(connection, domain)
     .then((e) => expect(e.data?.toString()).toBe("@🍍-tg"));
 });
+
+const sub = "test.🇺🇸.sol";
+
+test("Sub records", async () => {
+  record
+    .getEmailRecord(connection, sub)
+    .then((e) => expect(e.data?.toString()).toBe("test@test.com"));
+});
