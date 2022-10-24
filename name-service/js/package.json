@@ -1,11 +1,12 @@
 {
   "name": "@bonfida/spl-name-service",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/solana-labs/solana-program-library"
+    "url": "https://github.com/Bonfida/solana-program-library"
   },
+  "homepage": "https://bonfida.github.io/solana-name-service-guide/",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
