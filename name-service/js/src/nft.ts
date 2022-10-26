@@ -1,5 +1,9 @@
-import { PublicKey, Connection } from "@solana/web3.js";
-import { getMint } from "@solana/spl-token";
+import {
+  PublicKey,
+  Connection,
+  GetProgramAccountsFilter,
+} from "@solana/web3.js";
+import { getMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 /**
  * Mainnet program ID
@@ -35,19 +39,31 @@ export const retrieveNftOwner = async (
       return undefined;
     }
 
-    const { value } = await connection.getTokenLargestAccounts(mint);
+    const filters: GetProgramAccountsFilter[] = [
+      {
+        memcmp: {
+          offset: 0,
+          bytes: mint.toBase58(),
+        },
+      },
+      {
+        memcmp: {
+          offset: 64,
+          bytes: "2",
+        },
+      },
+      { dataSize: 165 },
+    ];
 
-    const holder = value.find((e) => e.amount === "1")?.address;
-    if (!holder) {
+    const result = await connection.getProgramAccounts(TOKEN_PROGRAM_ID, {
+      filters,
+    });
+
+    if (result.length != 1) {
       return undefined;
     }
 
-    const info = await connection.getAccountInfo(holder);
-    if (!info || !info.data) {
-      return undefined;
-    }
-
-    return new PublicKey(info.data.slice(32, 64));
+    return new PublicKey(result[0].account.data.slice(32, 64));
   } catch {
     return undefined;
   }

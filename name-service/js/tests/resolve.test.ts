@@ -1,4 +1,4 @@
-import { test, jest } from "@jest/globals";
+import { test, jest, expect } from "@jest/globals";
 import { Connection, clusterApiUrl } from "@solana/web3.js";
 import { resolve } from "../src/resolve";
 
@@ -12,9 +12,9 @@ test("Resolve domains", async () => {
   // let owner = await resolve(connection, domain);
   // expect(owner.toBase58()).toBe("CnNHzcp7L4jKiA2Rsca3hZyVwSmoqXaT8wGwzS8WvvB2");
 
-  // domain = "beach";
-  // owner = await resolve(connection, domain);
-  // expect(owner.toBase58()).toBe("CnNHzcp7L4jKiA2Rsca3hZyVwSmoqXaT8wGwzS8WvvB2");
+  let domain = "beach";
+  let owner = await resolve(connection, domain);
+  expect(owner.toBase58()).toBe("CnNHzcp7L4jKiA2Rsca3hZyVwSmoqXaT8wGwzS8WvvB2");
 
   // domain = "boston.sol";
   // owner = await resolve(connection, domain);
@@ -24,8 +24,8 @@ test("Resolve domains", async () => {
   // owner = await resolve(connection, domain);
   // expect(owner.toBase58()).toBe("J5TyWD7cozDdehGdjtrAF7sN5SVvqjfNCffKC6EgmRUU");
 
-  let domain = "10k-club.sol";
-  let owner = await resolve(connection, domain);
+  domain = "10k-club.sol";
+  owner = await resolve(connection, domain);
   expect(owner.toBase58()).toBe("CnNHzcp7L4jKiA2Rsca3hZyVwSmoqXaT8wGwzS8WvvB2");
 
   domain = "999-club.sol";
