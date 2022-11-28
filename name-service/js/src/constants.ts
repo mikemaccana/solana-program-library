@@ -65,3 +65,7 @@ export const TWITTER_ROOT_PARENT_REGISTRY_KEY = new PublicKey(
  * The length of the SOL record signature
  */
 export const SOL_RECORD_SIG_LEN = 96;
+
+export const BONFIDA_USDC_BNB = new PublicKey(
+  "DmSyHDSM9eSLyvoLsPvDr5fRRFZ7Bfr3h3ULvWpgQaq7"
+);

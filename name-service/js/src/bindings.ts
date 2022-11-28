@@ -20,7 +20,7 @@ import {
   NAME_PROGRAM_ID,
   ROOT_DOMAIN_ACCOUNT,
   REGISTER_PROGRAM_ID,
-  BONFIDA_FIDA_BNB,
+  BONFIDA_USDC_BNB,
 } from "./constants";
 
 /**
@@ -268,7 +268,7 @@ export const registerDomainName = async (
     centralState,
     buyer,
     buyerTokenAccount,
-    BONFIDA_FIDA_BNB,
+    BONFIDA_USDC_BNB,
     derived_state
   );
 
