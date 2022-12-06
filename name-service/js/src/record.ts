@@ -220,3 +220,26 @@ export const getPointRecord = async (
 ) => {
   return await getRecord(connection, domain, Record.POINT);
 };
+
+/**
+ * This function can be used to retrieve the BSC record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+export const getBscRecord = async (connection: Connection, domain: string) => {
+  return await getRecord(connection, domain, Record.BSC);
+};
+
+/**
+ * This function can be used to retrieve the Injective record of a domain name
+ * @param connection The Solana RPC connection object
+ * @param domain The .sol domain name
+ * @returns
+ */
+export const getInjectiveRecord = async (
+  connection: Connection,
+  domain: string
+) => {
+  return await getRecord(connection, domain, Record.Injective);
+};

@@ -19,4 +19,6 @@ export enum Record {
   Pic = "pic",
   SHDW = "SHDW",
   POINT = "POINT",
+  BSC = "BSC",
+  Injective = "Injective",
 }
