@@ -9,7 +9,9 @@ use {
         signer::keypair::Keypair, transaction::TransactionError, transport::TransportError,
     },
     spl_token_2022::{
-        error::TokenError, extension::mint_close_authority::MintCloseAuthority, instruction,
+        error::TokenError,
+        extension::{mint_close_authority::MintCloseAuthority, BaseStateWithExtensions},
+        instruction,
     },
     spl_token_client::token::{ExtensionInitializationParams, TokenError as TokenClientError},
     std::convert::TryInto,
@@ -181,7 +183,7 @@ async fn success_close() {
         )
         .await
         .unwrap();
-    let destination = token.get_account(&destination).await.unwrap();
+    let destination = token.get_account(destination).await.unwrap();
     assert!(destination.lamports > 0);
 }
 

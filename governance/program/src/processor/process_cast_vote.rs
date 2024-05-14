@@ -1,30 +1,31 @@
 //! Program state processor
 
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    clock::Clock,
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::Sysvar,
-};
-use spl_governance_addin_api::voter_weight::VoterWeightAction;
-use spl_governance_tools::account::create_and_serialize_account_signed;
-
-use crate::{
-    error::GovernanceError,
-    state::{
-        enums::GovernanceAccountType,
-        governance::get_governance_data_for_realm,
-        proposal::get_proposal_data_for_governance_and_governing_mint,
-        realm::get_realm_data_for_governing_token_mint,
-        realm_config::get_realm_config_data_for_realm,
-        token_owner_record::{
-            get_token_owner_record_data_for_proposal_owner,
-            get_token_owner_record_data_for_realm_and_governing_mint,
+use {
+    crate::{
+        error::GovernanceError,
+        state::{
+            enums::GovernanceAccountType,
+            governance::get_governance_data_for_realm,
+            proposal::get_proposal_data_for_governance_and_governing_mint,
+            realm::get_realm_data_for_governing_token_mint,
+            realm_config::get_realm_config_data_for_realm,
+            token_owner_record::{
+                get_token_owner_record_data_for_proposal_owner,
+                get_token_owner_record_data_for_realm_and_governing_mint,
+            },
+            vote_record::{get_vote_kind, get_vote_record_address_seeds, Vote, VoteRecordV2},
         },
-        vote_record::{get_vote_kind, get_vote_record_address_seeds, Vote, VoteRecordV2},
     },
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        clock::Clock,
+        entrypoint::ProgramResult,
+        pubkey::Pubkey,
+        rent::Rent,
+        sysvar::Sysvar,
+    },
+    spl_governance_addin_api::voter_weight::VoterWeightAction,
+    spl_governance_tools::account::create_and_serialize_account_signed,
 };
 
 /// Processes CastVote instruction
@@ -57,7 +58,7 @@ pub fn process_cast_vote(
         return Err(GovernanceError::VoteAlreadyExists.into());
     }
 
-    let mut realm_data = get_realm_data_for_governing_token_mint(
+    let realm_data = get_realm_data_for_governing_token_mint(
         program_id,
         realm_info,
         vote_governing_token_mint_info.key,
@@ -68,9 +69,10 @@ pub fn process_cast_vote(
 
     let vote_kind = get_vote_kind(&vote);
 
-    // Get the governing_token_mint which the Proposal should be configured with as the voting population for the given vote
-    // For Approve, Deny and Abstain votes it's the same as vote_governing_token_mint
-    // For Veto it's the governing token mint of the opposite voting population
+    // Get the governing_token_mint which the Proposal should be configured with as
+    // the voting population for the given vote For Approve, Deny and Abstain
+    // votes it's the same as vote_governing_token_mint For Veto it's the
+    // governing token mint of the opposite voting population
     let proposal_governing_token_mint = realm_data.get_proposal_governing_token_mint_for_vote(
         vote_governing_token_mint_info.key,
         &vote_kind,
@@ -82,7 +84,7 @@ pub fn process_cast_vote(
         governance_info.key,
         &proposal_governing_token_mint,
     )?;
-    proposal_data.assert_can_cast_vote(&governance_data.config, clock.unix_timestamp)?;
+    proposal_data.assert_can_cast_vote(&governance_data.config, &vote, clock.unix_timestamp)?;
 
     let mut voter_token_owner_record_data =
         get_token_owner_record_data_for_realm_and_governing_mint(
@@ -97,11 +99,6 @@ pub fn process_cast_vote(
     // Update TokenOwnerRecord vote counts
     voter_token_owner_record_data.unrelinquished_votes_count = voter_token_owner_record_data
         .unrelinquished_votes_count
-        .checked_add(1)
-        .unwrap();
-
-    voter_token_owner_record_data.total_votes_count = voter_token_owner_record_data
-        .total_votes_count
         .checked_add(1)
         .unwrap();
 
@@ -178,31 +175,28 @@ pub fn process_cast_vote(
             &proposal_data.token_owner_record,
         )?;
 
-        // If the voter is also the proposal owner then update the voter record which is serialized for the voter later on
+        // If the voter is also the proposal owner then update the voter record which is
+        // serialized for the voter later on
         if proposal_owner_record_info.key == voter_token_owner_record_info.key {
             voter_token_owner_record_data.decrease_outstanding_proposal_count();
         } else {
             proposal_owner_record_data.decrease_outstanding_proposal_count();
             proposal_owner_record_data
-                .serialize(&mut *proposal_owner_record_info.data.borrow_mut())?;
+                .serialize(&mut proposal_owner_record_info.data.borrow_mut()[..])?;
         };
 
-        // Update Realm voting_proposal_count
-        realm_data.voting_proposal_count = realm_data.voting_proposal_count.saturating_sub(1);
-        realm_data.serialize(&mut *realm_info.data.borrow_mut())?;
-
-        // Update  Governance voting_proposal_count
-        governance_data.voting_proposal_count =
-            governance_data.voting_proposal_count.saturating_sub(1);
-        governance_data.serialize(&mut *governance_info.data.borrow_mut())?;
+        // If the proposal is tipped decrease Governance active_proposal_count
+        governance_data.active_proposal_count =
+            governance_data.active_proposal_count.saturating_sub(1);
+        governance_data.serialize(&mut governance_info.data.borrow_mut()[..])?;
     }
 
     let governing_token_owner = voter_token_owner_record_data.governing_token_owner;
 
     voter_token_owner_record_data
-        .serialize(&mut *voter_token_owner_record_info.data.borrow_mut())?;
+        .serialize(&mut voter_token_owner_record_info.data.borrow_mut()[..])?;
 
-    proposal_data.serialize(&mut *proposal_info.data.borrow_mut())?;
+    proposal_data.serialize(&mut proposal_info.data.borrow_mut()[..])?;
 
     // Create and serialize VoteRecord
     let vote_record_data = VoteRecordV2 {
@@ -223,6 +217,7 @@ pub fn process_cast_vote(
         program_id,
         system_info,
         &rent,
+        0,
     )?;
 
     Ok(())

@@ -2,10 +2,14 @@
 
 mod program_test;
 
-use solana_program_test::tokio;
-
-use program_test::*;
-use spl_governance::{error::GovernanceError, state::enums::ProposalState};
+use {
+    program_test::*,
+    solana_program::pubkey::Pubkey,
+    solana_program_test::tokio,
+    solana_sdk::signature::{Keypair, Signer},
+    spl_governance::{error::GovernanceError, state::enums::ProposalState},
+    spl_governance_tools::error::GovernanceToolsError,
+};
 
 #[tokio::test]
 async fn test_sign_off_proposal() {
@@ -13,7 +17,6 @@ async fn test_sign_off_proposal() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -21,11 +24,7 @@ async fn test_sign_off_proposal() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -35,7 +34,11 @@ async fn test_sign_off_proposal() {
         .unwrap();
 
     let signatory_record_cookie = governance_test
-        .with_signatory(&proposal_cookie, &token_owner_record_cookie)
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
         .await
         .unwrap();
 
@@ -64,18 +67,6 @@ async fn test_sign_off_proposal() {
         .await;
 
     assert!(signatory_record_account.signed_off);
-
-    let realm_account = governance_test
-        .get_realm_account(&realm_cookie.address)
-        .await;
-
-    assert_eq!(1, realm_account.voting_proposal_count);
-
-    let governance_account = governance_test
-        .get_governance_account(&governance_cookie.address)
-        .await;
-
-    assert_eq!(1, governance_account.voting_proposal_count);
 }
 
 #[tokio::test]
@@ -84,7 +75,6 @@ async fn test_sign_off_proposal_with_signatory_must_sign_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -92,11 +82,7 @@ async fn test_sign_off_proposal_with_signatory_must_sign_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -106,7 +92,11 @@ async fn test_sign_off_proposal_with_signatory_must_sign_error() {
         .unwrap();
 
     let signatory_record_cookie = governance_test
-        .with_signatory(&proposal_cookie, &token_owner_record_cookie)
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
         .await
         .unwrap();
 
@@ -132,7 +122,6 @@ async fn test_sign_off_proposal_by_owner() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -140,11 +129,7 @@ async fn test_sign_off_proposal_by_owner() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -180,7 +165,6 @@ async fn test_sign_off_proposal_by_owner_with_owner_must_sign_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -188,11 +172,7 @@ async fn test_sign_off_proposal_by_owner_with_owner_must_sign_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -227,7 +207,6 @@ async fn test_sign_off_proposal_by_owner_with_other_proposal_owner_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -235,11 +214,7 @@ async fn test_sign_off_proposal_by_owner_with_other_proposal_owner_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -271,7 +246,6 @@ async fn test_sign_off_proposal_by_owner_with_existing_signatories_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -279,11 +253,7 @@ async fn test_sign_off_proposal_by_owner_with_existing_signatories_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -293,7 +263,11 @@ async fn test_sign_off_proposal_by_owner_with_existing_signatories_error() {
         .unwrap();
 
     governance_test
-        .with_signatory(&proposal_cookie, &token_owner_record_cookie)
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
         .await
         .unwrap();
 
@@ -308,4 +282,638 @@ async fn test_sign_off_proposal_by_owner_with_existing_signatories_error() {
     // Assert
 
     assert_eq!(err, GovernanceError::InvalidSignatoryAddress.into());
+}
+
+#[tokio::test]
+async fn test_sign_off_proposal_with_non_existing_governance_error() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    // Override Governance with non existing account
+    proposal_cookie.account.governance = Pubkey::new_unique();
+
+    // Act
+    let err = governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .err()
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(err, GovernanceToolsError::AccountDoesNotExist.into());
+}
+
+#[tokio::test]
+async fn test_sign_off_proposal_with_non_existing_realm_error() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    // Override Realm with non existing account
+    proposal_cookie.realm = Pubkey::new_unique();
+
+    // Act
+    let err = governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .err()
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(err, GovernanceToolsError::AccountDoesNotExist.into());
+}
+
+#[tokio::test]
+async fn test_sign_off_proposal_with_required_signatory() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let signatory = Keypair::new();
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie)
+        .await
+        .unwrap();
+
+    let new_proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    // Act
+    governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &new_proposal_cookie,
+            &signatory,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&new_proposal_cookie.address)
+        .await;
+
+    assert_eq!(1, proposal_account.signatories_signed_off_count);
+    assert_eq!(ProposalState::Voting, proposal_account.state);
+}
+
+#[tokio::test]
+async fn test_partial_sign_off_proposal_with_two_governance_signatories() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let signatory_1 = Keypair::new();
+    let signatory_2 = Keypair::new();
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie_1 = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie_2 = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_2.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie_1)
+        .await
+        .unwrap();
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie_2)
+        .await
+        .unwrap();
+
+    // End setup proposal
+
+    let new_proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory_2.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    // Act
+    governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &new_proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+    let proposal_account = governance_test
+        .get_proposal_account(&new_proposal_cookie.address)
+        .await;
+
+    assert_eq!(1, proposal_account.signatories_signed_off_count);
+    assert_eq!(ProposalState::SigningOff, proposal_account.state);
+}
+
+#[tokio::test]
+async fn test_repeat_sign_off_proposal_err() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let signatory_1 = Keypair::new();
+    let signatory_2 = Keypair::new();
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    // Proposal to create required signatory 1
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie)
+        .await
+        .unwrap();
+
+    // Proposal to create required signatory 2
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_2.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie)
+        .await
+        .unwrap();
+
+    // End setup proposals
+
+    let new_proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory_2.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    // Sign off 1
+    governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &new_proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .unwrap();
+    governance_test.advance_clock().await;
+
+    // Act
+    let err = governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &new_proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .err()
+        .unwrap();
+
+    // Assert
+    assert_eq!(err, GovernanceError::SignatoryAlreadySignedOff.into());
+}
+
+#[tokio::test]
+async fn test_sign_off_without_all_required_signatories_err() {
+    // Arrange
+    let mut governance_test = GovernanceProgramTest::start_new().await;
+
+    let realm_cookie = governance_test.with_realm().await;
+
+    let signatory_1 = Keypair::new();
+    let signatory_2 = Keypair::new();
+
+    let token_owner_record_cookie = governance_test
+        .with_community_token_deposit(&realm_cookie)
+        .await
+        .unwrap();
+
+    let mut governance_cookie = governance_test
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
+        .await
+        .unwrap();
+
+    // Proposal to create required signatory 1
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let signatory_record_cookie = governance_test
+        .with_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &token_owner_record_cookie,
+        )
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .sign_off_proposal(&proposal_cookie, &signatory_record_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie)
+        .await
+        .unwrap();
+
+    // Proposal to create required signatory 2
+    let mut proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    let proposal_transaction_cookie = governance_test
+        .with_add_required_signatory_transaction(
+            &mut proposal_cookie,
+            &token_owner_record_cookie,
+            &governance_cookie,
+            &signatory_2.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &proposal_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .unwrap();
+
+    governance_test
+        .with_cast_yes_no_vote(&proposal_cookie, &token_owner_record_cookie, YesNoVote::Yes)
+        .await
+        .unwrap();
+
+    governance_test
+        .advance_clock_by_min_timespan(
+            governance_cookie.account.config.transactions_hold_up_time as u64,
+        )
+        .await;
+
+    governance_test
+        .execute_proposal_transaction(&proposal_cookie, &proposal_transaction_cookie)
+        .await
+        .unwrap();
+
+    // End setup proposals
+
+    let new_proposal_cookie = governance_test
+        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
+        .await
+        .unwrap();
+
+    governance_test
+        .with_signatory_record_for_required_signatory(
+            &new_proposal_cookie,
+            &governance_cookie,
+            &signatory_1.pubkey(),
+        )
+        .await
+        .unwrap();
+
+    // Act
+    let err = governance_test
+        .do_required_signoff(
+            &realm_cookie,
+            &governance_cookie,
+            &new_proposal_cookie,
+            &signatory_1,
+        )
+        .await
+        .err()
+        .unwrap();
+
+    // Assert
+    assert_eq!(err, GovernanceError::MissingRequiredSignatories.into());
 }

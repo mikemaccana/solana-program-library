@@ -4,9 +4,10 @@ use solana_program_test::*;
 
 mod program_test;
 
-use program_test::args::*;
-use program_test::*;
-use spl_governance::state::enums::ProposalState;
+use {
+    program_test::{args::*, *},
+    spl_governance::state::enums::ProposalState,
+};
 
 #[tokio::test]
 async fn test_cast_community_vote_with_all_addin() {
@@ -33,14 +34,8 @@ async fn test_cast_community_vote_with_all_addin() {
         .await
         .unwrap();
 
-    let governed_account_cookie = governance_test.with_governed_account().await;
-
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -95,14 +90,8 @@ async fn test_cast_council_vote_with_all_addin() {
         .await
         .unwrap();
 
-    let governed_account_cookie = governance_test.with_governed_account().await;
-
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -157,14 +146,8 @@ async fn test_tip_vote_with_all_addin() {
         .await
         .unwrap();
 
-    let governed_account_cookie = governance_test.with_governed_account().await;
-
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -219,14 +202,8 @@ async fn test_finalize_vote_with_all_addin() {
         .await
         .unwrap();
 
-    let governed_account_cookie = governance_test.with_governed_account().await;
-
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 

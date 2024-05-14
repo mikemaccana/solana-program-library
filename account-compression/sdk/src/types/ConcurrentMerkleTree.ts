@@ -1,39 +1,55 @@
-
 import * as beet from '@metaplex-foundation/beet';
-import { PublicKey } from '@solana/web3.js';
 import * as beetSolana from '@metaplex-foundation/beet-solana';
-import {
-    Path,
-    pathBeetFactory
-} from './Path';
+import { PublicKey } from '@solana/web3.js';
 
-type ChangeLog = {
-    root: PublicKey,
+import { Path, pathBeetFactory } from './Path';
+
+/**
+ * ChangeLog information necessary for deserializing an on-chain ConcurrentMerkleTree
+ * @private
+ */
+export type ChangeLogInternal = {
+    // u32
+    _padding: number;
+    index: number;
     pathNodes: PublicKey[];
-    index: number; // u32
-    _padding: number; // u32
+    root: PublicKey; // u32
 };
 
 const changeLogBeetFactory = (maxDepth: number) => {
-    return new beet.BeetArgsStruct<ChangeLog>(
+    return new beet.BeetArgsStruct<ChangeLogInternal>(
         [
             ['root', beetSolana.publicKey],
             ['pathNodes', beet.uniformFixedSizeArray(beetSolana.publicKey, maxDepth)],
             ['index', beet.u32],
-            ["_padding", beet.u32],
+            ['_padding', beet.u32],
         ],
-        'ChangeLog'
-    )
-}
-
-export type ConcurrentMerkleTree = {
-    sequenceNumber: beet.bignum; // u64
-    activeIndex: beet.bignum; // u64
-    bufferSize: beet.bignum; // u64
-    changeLogs: ChangeLog[];
-    rightMostPath: Path;
+        'ChangeLog',
+    );
 };
 
+/**
+ * ConcurrentMerkleTree fields necessary for deserializing an on-chain ConcurrentMerkleTree
+ */
+export type ConcurrentMerkleTree = {
+    // u64
+    activeIndex: beet.bignum;
+    // u64
+    bufferSize: beet.bignum;
+    // u64
+    changeLogs: ChangeLogInternal[];
+    rightMostPath: Path;
+    sequenceNumber: beet.bignum;
+};
+
+/**
+ * Factory function for generating a `beet` that can deserialize
+ * an on-chain {@link ConcurrentMerkleTree}
+ *
+ * @param maxDepth
+ * @param maxBufferSize
+ * @returns
+ */
 export const concurrentMerkleTreeBeetFactory = (maxDepth: number, maxBufferSize: number) => {
     return new beet.BeetArgsStruct<ConcurrentMerkleTree>(
         [
@@ -43,6 +59,6 @@ export const concurrentMerkleTreeBeetFactory = (maxDepth: number, maxBufferSize:
             ['changeLogs', beet.uniformFixedSizeArray(changeLogBeetFactory(maxDepth), maxBufferSize)],
             ['rightMostPath', pathBeetFactory(maxDepth)],
         ],
-        'ConcurrentMerkleTree'
+        'ConcurrentMerkleTree',
     );
-}
+};

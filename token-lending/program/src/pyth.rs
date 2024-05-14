@@ -1,5 +1,5 @@
 #![allow(missing_docs)]
-/// Derived from https://github.com/project-serum/anchor/blob/9224e0fa99093943a6190e396bccbc3387e5b230/examples/pyth/programs/pyth/src/pc.rs
+/// Derived from https://github.com/coral-xyz/anchor/blob/9224e0fa99093943a6190e396bccbc3387e5b230/examples/pyth/programs/pyth/src/pc.rs
 use bytemuck::{
     cast_slice, cast_slice_mut, from_bytes, from_bytes_mut, try_cast_slice, try_cast_slice_mut,
     Pod, PodCastError, Zeroable,
@@ -21,7 +21,7 @@ pub struct AccKey {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-#[repr(C)]
+#[repr(u32)]
 pub enum AccountType {
     Unknown,
     Mapping,
@@ -30,7 +30,7 @@ pub enum AccountType {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-#[repr(C)]
+#[repr(u32)]
 pub enum PriceStatus {
     Unknown,
     Trading,
@@ -39,7 +39,7 @@ pub enum PriceStatus {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-#[repr(C)]
+#[repr(u32)]
 pub enum CorpAction {
     NoCorpAct,
 }
@@ -63,7 +63,7 @@ pub struct PriceComp {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-#[repr(C)]
+#[repr(u32)]
 pub enum PriceType {
     Unknown,
     Price,

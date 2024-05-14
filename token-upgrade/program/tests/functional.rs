@@ -1,4 +1,5 @@
-// Mark this test as SBF-only due to current `ProgramTest` limitations when CPIing into the system program
+// Mark this test as SBF-only due to current `ProgramTest` limitations when
+// CPIing into the system program
 #![cfg(feature = "test-sbf")]
 
 use {
@@ -17,7 +18,7 @@ use {
     spl_token_client::{
         client::{
             ProgramBanksClient, ProgramBanksClientProcessTransaction, ProgramClient,
-            SendTransaction,
+            SendTransaction, SimulateTransaction,
         },
         token::Token,
     },
@@ -68,7 +69,7 @@ async fn setup() -> (
     (context, client, payer)
 }
 
-async fn setup_mint<T: SendTransaction>(
+async fn setup_mint<T: SendTransaction + SimulateTransaction>(
     program_id: &Pubkey,
     mint_authority: &Pubkey,
     decimals: u8,

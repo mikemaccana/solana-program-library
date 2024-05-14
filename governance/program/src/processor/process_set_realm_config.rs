@@ -1,23 +1,21 @@
 //! Program state processor
 
-use borsh::BorshSerialize;
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::Sysvar,
-};
-use spl_governance_tools::account::create_and_serialize_account_signed;
-
-use crate::{
-    error::GovernanceError,
-    state::{
-        realm::{assert_valid_realm_config_args, get_realm_data_for_authority, RealmConfigArgs},
-        realm_config::{
-            get_realm_config_address_seeds, get_realm_config_data_for_realm,
-            resolve_governing_token_config, RealmConfigAccount,
+use {
+    crate::{
+        error::GovernanceError,
+        state::{
+            realm::{
+                assert_valid_realm_config_args, get_realm_data_for_authority, RealmConfigArgs,
+            },
+            realm_config::{get_realm_config_data_for_realm, resolve_governing_token_config},
         },
+    },
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        entrypoint::ProgramResult,
+        pubkey::Pubkey,
+        rent::Rent,
+        sysvar::Sysvar,
     },
 };
 
@@ -39,15 +37,11 @@ pub fn process_set_realm_config(
         return Err(GovernanceError::RealmAuthorityMustSign.into());
     }
 
-    // Until we have Veto implemented it's better to allow config change as the defence of last resort against governance attacks
-    // Note: Config change leaves voting proposals in unpredictable state and it's DAOs responsibility
-    // to ensure the changes are made when there are no proposals in voting state
-    // For example changing voter-weight or max-voter-weight addin could accidentally make proposals to succeed which would otherwise be defeated
-    // The check wouldn't have any effect when upgrading from V1 to V2 because it was not tracked in V1
-
-    // if realm_data.voting_proposal_count > 0 {
-    //     return Err(GovernanceError::RealmConfigChangeNotAllowed.into());
-    // }
+    // Note: Config change leaves voting proposals in unpredictable state and it's
+    // DAOs responsibility to ensure the changes are made when there are no
+    // proposals in voting state For example changing voter-weight or
+    // max-voter-weight addin could accidentally make proposals to succeed which
+    // would otherwise be defeated
 
     assert_valid_realm_config_args(&realm_config_args)?;
 
@@ -56,9 +50,10 @@ pub fn process_set_realm_config(
         let council_token_mint_info = next_account_info(account_info_iter)?; // 2
         let _council_token_holding_info = next_account_info(account_info_iter)?; // 3
 
-        // Council mint can only be at present set to None (removed) and changing it to other mint is not supported
-        // It might be implemented in future versions but it needs careful planning
-        // It can potentially open a can of warms like what happens with existing deposits or pending proposals
+        // Council mint can only be at present set to None (removed) and changing it to
+        // other mint is not supported It might be implemented in future
+        // versions but it needs careful planning It can potentially open a can
+        // of warms like what happens with existing deposits or pending proposals
         if let Some(council_token_mint) = realm_data.config.council_mint {
             // Council mint can't be changed to different one
             if council_token_mint != *council_token_mint_info.key {
@@ -70,7 +65,8 @@ pub fn process_set_realm_config(
         }
     } else {
         // Remove council mint from realm
-        // Note: In the current implementation this also makes it impossible to withdraw council tokens
+        // Note: In the current implementation this also makes it impossible to withdraw
+        // council tokens
         realm_data.config.council_mint = None;
     }
 
@@ -88,37 +84,29 @@ pub fn process_set_realm_config(
     let community_token_config = resolve_governing_token_config(
         account_info_iter,
         &realm_config_args.community_token_config_args,
+        Some(realm_config_data.community_token_config.clone()),
     )?;
 
     // 8, 9
     let council_token_config = resolve_governing_token_config(
         account_info_iter,
         &realm_config_args.council_token_config_args,
+        Some(realm_config_data.council_token_config.clone()),
     )?;
 
     realm_config_data.community_token_config = community_token_config;
     realm_config_data.council_token_config = council_token_config;
 
-    // Update or create RealmConfigAccount
-    if realm_config_info.data_is_empty() {
-        // For older Realms (pre v3) RealmConfigAccount might not exist yet and we have to create it
+    let payer_info = next_account_info(account_info_iter)?; // 10
+    let rent = Rent::get()?;
 
-        // We need the payer to pay for the new account if it's created
-        let payer_info = next_account_info(account_info_iter)?; // 10
-        let rent = Rent::get()?;
-
-        create_and_serialize_account_signed::<RealmConfigAccount>(
-            payer_info,
-            realm_config_info,
-            &realm_config_data,
-            &get_realm_config_address_seeds(realm_info.key),
-            program_id,
-            system_info,
-            &rent,
-        )?;
-    } else {
-        realm_config_data.serialize(&mut *realm_config_info.data.borrow_mut())?;
-    }
+    realm_config_data.serialize(
+        program_id,
+        realm_config_info,
+        payer_info,
+        system_info,
+        &rent,
+    )?;
 
     // Update RealmConfig (Realm.config field)
     realm_data.config.community_mint_max_voter_weight_source =
@@ -130,7 +118,7 @@ pub fn process_set_realm_config(
     realm_data.config.legacy1 = 0;
     realm_data.config.legacy2 = 0;
 
-    realm_data.serialize(&mut *realm_info.data.borrow_mut())?;
+    realm_data.serialize(&mut realm_info.data.borrow_mut()[..])?;
 
     Ok(())
 }

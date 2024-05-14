@@ -8,9 +8,11 @@ module.exports = {
       collapsed: true,
       items: [
         "token-2022",
+        "token-2022/status",
         "token-2022/extensions",
         "token-2022/wallet",
         "token-2022/onchain",
+        "token-2022/presentation",
       ],
     },
     "token-swap",
@@ -28,9 +30,11 @@ module.exports = {
         "stake-pool",
         "stake-pool/quickstart",
         "stake-pool/overview",
+        "stake-pool/fees",
         "stake-pool/cli",
       ],
     },
+    "single-pool",
     "feature-proposal",
     {
       type: "category",
@@ -50,6 +54,31 @@ module.exports = {
           ],
         },
       ],
+    },
+    {
+      type: "category",
+      label: "Account Compression",
+      collapsed: true,
+      items: [
+        "account-compression",
+        "account-compression/concepts",
+        "account-compression/usage",
+      ]
+    },
+    {
+      type: "category",
+      label: "Transfer Hook Interface",
+      collapsed: true,
+      items: [
+        {
+          type: 'doc',
+          label: 'Introduction',
+          id: 'transfer-hook-interface',
+        },
+        "transfer-hook-interface/specification",
+        "transfer-hook-interface/configuring-extra-accounts",
+        "transfer-hook-interface/examples",
+      ]
     },
   ],
 };

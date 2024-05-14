@@ -7,10 +7,11 @@ use {
                 instruction::TransferFeeInstruction, TransferFee, TransferFeeAmount,
                 TransferFeeConfig, MAX_FEE_BASIS_POINTS,
             },
-            StateWithExtensions, StateWithExtensionsMut,
+            BaseStateWithExtensions, BaseStateWithExtensionsMut, PodStateWithExtensions,
+            PodStateWithExtensionsMut,
         },
+        pod::{PodAccount, PodMint},
         processor::Processor,
-        state::{Account, Mint},
     },
     solana_program::{
         account_info::{next_account_info, AccountInfo},
@@ -35,7 +36,7 @@ fn process_initialize_transfer_fee_config(
     let mint_account_info = next_account_info(account_info_iter)?;
 
     let mut mint_data = mint_account_info.data.borrow_mut();
-    let mut mint = StateWithExtensionsMut::<Mint>::unpack_uninitialized(&mut mint_data)?;
+    let mut mint = PodStateWithExtensionsMut::<PodMint>::unpack_uninitialized(&mut mint_data)?;
     let extension = mint.init_extension::<TransferFeeConfig>(true)?;
     extension.transfer_fee_config_authority = transfer_fee_config_authority.try_into()?;
     extension.withdraw_withheld_authority = withdraw_withheld_authority.try_into()?;
@@ -70,7 +71,7 @@ fn process_set_transfer_fee(
     let authority_info_data_len = authority_info.data_len();
 
     let mut mint_data = mint_account_info.data.borrow_mut();
-    let mut mint = StateWithExtensionsMut::<Mint>::unpack(&mut mint_data)?;
+    let mut mint = PodStateWithExtensionsMut::<PodMint>::unpack(&mut mint_data)?;
     let extension = mint.get_extension_mut::<TransferFeeConfig>()?;
 
     let transfer_fee_config_authority =
@@ -89,10 +90,11 @@ fn process_set_transfer_fee(
     }
 
     // When setting the transfer fee, we have two situations:
-    // * newer transfer fee epoch <= current epoch:
-    //     newer transfer fee is the active one, so overwrite older transfer fee with newer, then overwrite newer transfer fee
-    // * newer transfer fee epoch >= next epoch:
-    //     it was never used, so just overwrite next transfer fee
+    // * newer transfer fee epoch <= current epoch: newer transfer fee is the active
+    //   one, so overwrite older transfer fee with newer, then overwrite newer
+    //   transfer fee
+    // * newer transfer fee epoch >= next epoch: it was never used, so just
+    //   overwrite next transfer fee
     let epoch = Clock::get()?.epoch;
     if u64::from(extension.newer_transfer_fee.epoch) <= epoch {
         extension.older_transfer_fee = extension.newer_transfer_fee;
@@ -119,8 +121,11 @@ fn process_withdraw_withheld_tokens_from_mint(
     let authority_info = next_account_info(account_info_iter)?;
     let authority_info_data_len = authority_info.data_len();
 
+    // unnecessary check, but helps for clarity
+    check_program_account(mint_account_info.owner)?;
+
     let mut mint_data = mint_account_info.data.borrow_mut();
-    let mut mint = StateWithExtensionsMut::<Mint>::unpack(&mut mint_data)?;
+    let mut mint = PodStateWithExtensionsMut::<PodMint>::unpack(&mut mint_data)?;
     let extension = mint.get_extension_mut::<TransferFeeConfig>()?;
 
     let withdraw_withheld_authority = Option::<Pubkey>::from(extension.withdraw_withheld_authority)
@@ -134,8 +139,8 @@ fn process_withdraw_withheld_tokens_from_mint(
     )?;
 
     let mut destination_account_data = destination_account_info.data.borrow_mut();
-    let mut destination_account =
-        StateWithExtensionsMut::<Account>::unpack(&mut destination_account_data)?;
+    let destination_account =
+        PodStateWithExtensionsMut::<PodAccount>::unpack(&mut destination_account_data)?;
     if destination_account.base.mint != *mint_account_info.key {
         return Err(TokenError::MintMismatch.into());
     }
@@ -144,23 +149,22 @@ fn process_withdraw_withheld_tokens_from_mint(
     }
     let withheld_amount = u64::from(extension.withheld_amount);
     extension.withheld_amount = 0.into();
-    destination_account.base.amount = destination_account
-        .base
-        .amount
+    destination_account.base.amount = u64::from(destination_account.base.amount)
         .checked_add(withheld_amount)
-        .ok_or(TokenError::Overflow)?;
-    destination_account.pack_base();
+        .ok_or(TokenError::Overflow)?
+        .into();
 
     Ok(())
 }
 
-fn harvest_from_account<'a, 'b>(
+fn harvest_from_account<'b>(
     mint_key: &'b Pubkey,
-    token_account_info: &'b AccountInfo<'a>,
+    token_account_info: &'b AccountInfo<'_>,
 ) -> Result<u64, TokenError> {
     let mut token_account_data = token_account_info.data.borrow_mut();
-    let mut token_account = StateWithExtensionsMut::<Account>::unpack(&mut token_account_data)
-        .map_err(|_| TokenError::InvalidState)?;
+    let mut token_account =
+        PodStateWithExtensionsMut::<PodAccount>::unpack(&mut token_account_data)
+            .map_err(|_| TokenError::InvalidState)?;
     if token_account.base.mint != *mint_key {
         return Err(TokenError::MintMismatch);
     }
@@ -179,7 +183,7 @@ fn process_harvest_withheld_tokens_to_mint(accounts: &[AccountInfo]) -> ProgramR
     let token_account_infos = account_info_iter.as_slice();
 
     let mut mint_data = mint_account_info.data.borrow_mut();
-    let mut mint = StateWithExtensionsMut::<Mint>::unpack(&mut mint_data)?;
+    let mut mint = PodStateWithExtensionsMut::<PodMint>::unpack(&mut mint_data)?;
     let mint_extension = mint.get_extension_mut::<TransferFeeConfig>()?;
 
     for token_account_info in token_account_infos {
@@ -214,8 +218,11 @@ fn process_withdraw_withheld_tokens_from_accounts(
         .len()
         .saturating_sub(num_token_accounts as usize);
 
+    // unnecessary check, but helps for clarity
+    check_program_account(mint_account_info.owner)?;
+
     let mint_data = mint_account_info.data.borrow();
-    let mint = StateWithExtensions::<Mint>::unpack(&mint_data)?;
+    let mint = PodStateWithExtensions::<PodMint>::unpack(&mint_data)?;
     let extension = mint.get_extension::<TransferFeeConfig>()?;
 
     let withdraw_withheld_authority = Option::<Pubkey>::from(extension.withdraw_withheld_authority)
@@ -230,7 +237,7 @@ fn process_withdraw_withheld_tokens_from_accounts(
 
     let mut destination_account_data = destination_account_info.data.borrow_mut();
     let mut destination_account =
-        StateWithExtensionsMut::<Account>::unpack(&mut destination_account_data)?;
+        PodStateWithExtensionsMut::<PodAccount>::unpack(&mut destination_account_data)?;
     if destination_account.base.mint != *mint_account_info.key {
         return Err(TokenError::MintMismatch.into());
     }
@@ -245,19 +252,17 @@ fn process_withdraw_withheld_tokens_from_accounts(
                 .map_err(|_| TokenError::InvalidState)?;
             let account_withheld_amount = u64::from(token_account_extension.withheld_amount);
             token_account_extension.withheld_amount = 0.into();
-            destination_account.base.amount = destination_account
-                .base
-                .amount
+            destination_account.base.amount = u64::from(destination_account.base.amount)
                 .checked_add(account_withheld_amount)
-                .ok_or(TokenError::Overflow)?;
+                .ok_or(TokenError::Overflow)?
+                .into();
         } else {
             match harvest_from_account(mint_account_info.key, account_info) {
                 Ok(amount) => {
-                    destination_account.base.amount = destination_account
-                        .base
-                        .amount
+                    destination_account.base.amount = u64::from(destination_account.base.amount)
                         .checked_add(amount)
-                        .ok_or(TokenError::Overflow)?;
+                        .ok_or(TokenError::Overflow)?
+                        .into();
                 }
                 Err(e) => {
                     msg!("Error harvesting from {}: {}", account_info.key, e);
@@ -265,7 +270,6 @@ fn process_withdraw_withheld_tokens_from_accounts(
             }
         }
     }
-    destination_account.pack_base();
 
     Ok(())
 }
@@ -273,8 +277,9 @@ fn process_withdraw_withheld_tokens_from_accounts(
 pub(crate) fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    instruction: TransferFeeInstruction,
+    input: &[u8],
 ) -> ProgramResult {
+    let instruction = TransferFeeInstruction::unpack(input)?;
     check_program_account(program_id)?;
 
     match instruction {

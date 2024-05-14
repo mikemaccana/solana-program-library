@@ -1,6 +1,5 @@
-import { publicKey, struct, u32, u64, u8, option, vec } from '@project-serum/borsh';
-import { Lockup, PublicKey } from '@solana/web3.js';
-import { AccountInfo } from '@solana/spl-token';
+import { publicKey, struct, u32, u64, u8, option, vec } from '@coral-xyz/borsh';
+import { PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 import {
   Infer,
@@ -20,23 +19,6 @@ export interface Fee {
 }
 
 const feeFields = [u64('denominator'), u64('numerator')];
-
-/**
- * AccountLayout.encode from "@solana/spl-token" doesn't work
- */
-export const AccountLayout = struct<AccountInfo>([
-  publicKey('mint'),
-  publicKey('owner'),
-  u64('amount'),
-  u32('delegateOption'),
-  publicKey('delegate'),
-  u8('state'),
-  u32('isNativeOption'),
-  u64('isNative'),
-  u64('delegatedAmount'),
-  u32('closeAuthorityOption'),
-  publicKey('closeAuthority'),
-]);
 
 export enum AccountType {
   Uninitialized,
@@ -94,6 +76,11 @@ export const StakeAccount = type({
   type: StakeAccountType,
   info: optional(StakeAccountInfo),
 });
+export interface Lockup {
+  unixTimestamp: BN;
+  epoch: BN;
+  custodian: PublicKey;
+}
 
 export interface StakePool {
   accountType: AccountType;

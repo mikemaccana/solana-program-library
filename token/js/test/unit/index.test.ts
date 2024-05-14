@@ -1,6 +1,5 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect, use } from 'chai';
 import {
     ASSOCIATED_TOKEN_PROGRAM_ID,
     createAssociatedTokenAccountInstruction,
@@ -16,14 +15,17 @@ import {
     TokenOwnerOffCurveError,
     getAccountLen,
     ExtensionType,
+    isMintExtension,
+    isAccountExtension,
     getAssociatedTokenAddressSync,
     createInitializeAccount2Instruction,
     createInitializeAccount3Instruction,
     createAmountToUiAmountInstruction,
     createUiAmountToAmountInstruction,
+    getMintLen,
 } from '../../src';
-
-chai.use(chaiAsPromised);
+import chaiAsPromised from 'chai-as-promised';
+use(chaiAsPromised);
 
 describe('spl-token instructions', () => {
     it('TransferChecked', () => {
@@ -232,9 +234,42 @@ describe('state', () => {
 });
 
 describe('extensionType', () => {
-    it('calculates size', () => {
+    it('calculates size for accounts', () => {
         expect(getAccountLen([ExtensionType.MintCloseAuthority, ExtensionType.TransferFeeConfig])).to.eql(314);
         expect(getAccountLen([])).to.eql(165);
         expect(getAccountLen([ExtensionType.ImmutableOwner])).to.eql(170);
+        expect(getAccountLen([ExtensionType.PermanentDelegate])).to.eql(202);
+    });
+
+    it('calculates size for mints', () => {
+        expect(getMintLen([ExtensionType.TransferFeeConfig, ExtensionType.NonTransferable])).to.eql(282);
+        expect(getMintLen([])).to.eql(82);
+        expect(getMintLen([ExtensionType.TransferHook])).to.eql(234);
+        expect(getMintLen([ExtensionType.MetadataPointer])).to.eql(234);
+        expect(
+            getMintLen([ExtensionType.TransferFeeConfig, ExtensionType.NonTransferable], {
+                [ExtensionType.TokenMetadata]: 200,
+            })
+        ).to.eql(486);
+        expect(
+            getMintLen([], {
+                [ExtensionType.TokenMetadata]: 200,
+            })
+        ).to.eql(370);
+        // Should error on an extension that isn't variable-length
+        expect(() =>
+            getMintLen([ExtensionType.TransferFeeConfig, ExtensionType.NonTransferable], {
+                [ExtensionType.TransferHook]: 200,
+            })
+        ).to.throw('Extension 14 is not variable length');
+    });
+
+    it('exclusive and exhaustive predicates', () => {
+        const exts = Object.values(ExtensionType).filter(Number.isInteger);
+        const mintExts = exts.filter((e: any): e is ExtensionType => isMintExtension(e));
+        const accountExts = exts.filter((e: any): e is ExtensionType => isAccountExtension(e));
+        const collectedExts = [ExtensionType.Uninitialized].concat(mintExts, accountExts);
+
+        expect(collectedExts.sort()).to.eql(exts.sort());
     });
 });

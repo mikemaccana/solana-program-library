@@ -1,24 +1,26 @@
 //! Program state processor
 
-use crate::{
-    amount_to_ui_amount_string_trimmed,
-    error::TokenError,
-    instruction::{is_valid_signer_index, AuthorityType, TokenInstruction, MAX_SIGNERS},
-    state::{Account, AccountState, Mint, Multisig},
-    try_ui_amount_into_amount,
-};
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult,
-    msg,
-    program::set_return_data,
-    program_error::ProgramError,
-    program_memory::sol_memcmp,
-    program_option::COption,
-    program_pack::{IsInitialized, Pack},
-    pubkey::{Pubkey, PUBKEY_BYTES},
-    system_program,
-    sysvar::{rent::Rent, Sysvar},
+use {
+    crate::{
+        amount_to_ui_amount_string_trimmed,
+        error::TokenError,
+        instruction::{is_valid_signer_index, AuthorityType, TokenInstruction, MAX_SIGNERS},
+        state::{Account, AccountState, Mint, Multisig},
+        try_ui_amount_into_amount,
+    },
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        entrypoint::ProgramResult,
+        msg,
+        program::set_return_data,
+        program_error::ProgramError,
+        program_memory::sol_memcmp,
+        program_option::COption,
+        program_pack::{IsInitialized, Pack},
+        pubkey::{Pubkey, PUBKEY_BYTES},
+        system_program,
+        sysvar::{rent::Rent, Sysvar},
+    },
 };
 
 /// Program state handler.
@@ -139,7 +141,8 @@ impl Processor {
         Ok(())
     }
 
-    /// Processes an [InitializeAccount](enum.TokenInstruction.html) instruction.
+    /// Processes an [InitializeAccount](enum.TokenInstruction.html)
+    /// instruction.
     pub fn process_initialize_account(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -147,7 +150,8 @@ impl Processor {
         Self::_process_initialize_account(program_id, accounts, None, true)
     }
 
-    /// Processes an [InitializeAccount2](enum.TokenInstruction.html) instruction.
+    /// Processes an [InitializeAccount2](enum.TokenInstruction.html)
+    /// instruction.
     pub fn process_initialize_account2(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -156,7 +160,8 @@ impl Processor {
         Self::_process_initialize_account(program_id, accounts, Some(&owner), true)
     }
 
-    /// Processes an [InitializeAccount3](enum.TokenInstruction.html) instruction.
+    /// Processes an [InitializeAccount3](enum.TokenInstruction.html)
+    /// instruction.
     pub fn process_initialize_account3(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -207,12 +212,14 @@ impl Processor {
         Ok(())
     }
 
-    /// Processes a [InitializeMultisig](enum.TokenInstruction.html) instruction.
+    /// Processes a [InitializeMultisig](enum.TokenInstruction.html)
+    /// instruction.
     pub fn process_initialize_multisig(accounts: &[AccountInfo], m: u8) -> ProgramResult {
         Self::_process_initialize_multisig(accounts, m, true)
     }
 
-    /// Processes a [InitializeMultisig2](enum.TokenInstruction.html) instruction.
+    /// Processes a [InitializeMultisig2](enum.TokenInstruction.html)
+    /// instruction.
     pub fn process_initialize_multisig2(accounts: &[AccountInfo], m: u8) -> ProgramResult {
         Self::_process_initialize_multisig(accounts, m, false)
     }
@@ -787,7 +794,8 @@ impl Processor {
         Ok(())
     }
 
-    /// Processes an [InitializeImmutableOwner](enum.TokenInstruction.html) instruction
+    /// Processes an [InitializeImmutableOwner](enum.TokenInstruction.html)
+    /// instruction
     pub fn process_initialize_immutable_owner(accounts: &[AccountInfo]) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let token_account_info = next_account_info(account_info_iter)?;
@@ -1028,20 +1036,22 @@ fn delete_account(account_info: &AccountInfo) -> Result<(), ProgramError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::instruction::*;
-    use serial_test::serial;
-    use solana_program::{
-        account_info::IntoAccountInfo,
-        clock::Epoch,
-        instruction::Instruction,
-        program_error::{self, PrintProgramError},
-        sysvar::rent,
+    use {
+        super::*,
+        crate::instruction::*,
+        serial_test::serial,
+        solana_program::{
+            account_info::IntoAccountInfo,
+            clock::Epoch,
+            instruction::Instruction,
+            program_error::{self, PrintProgramError},
+            sysvar::rent,
+        },
+        solana_sdk::account::{
+            create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
+        },
+        std::sync::{Arc, RwLock},
     };
-    use solana_sdk::account::{
-        create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
-    };
-    use std::sync::{Arc, RwLock};
 
     lazy_static::lazy_static! {
         static ref EXPECTED_DATA: Arc<RwLock<Vec<u8>>> = Arc::new(RwLock::new(Vec::new()));
@@ -1147,9 +1157,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Custom(3)")]
-    fn test_error_unwrap() {
-        Err::<(), ProgramError>(return_token_error_as_program_error()).unwrap();
+    fn test_error_as_custom() {
+        assert_eq!(
+            return_token_error_as_program_error(),
+            ProgramError::Custom(3)
+        );
     }
 
     #[test]
@@ -1166,11 +1178,11 @@ mod tests {
     fn test_pack_unpack() {
         // Mint
         let check = Mint {
-            mint_authority: COption::Some(Pubkey::new(&[1; 32])),
+            mint_authority: COption::Some(Pubkey::new_from_array([1; 32])),
             supply: 42,
             decimals: 7,
             is_initialized: true,
-            freeze_authority: COption::Some(Pubkey::new(&[2; 32])),
+            freeze_authority: COption::Some(Pubkey::new_from_array([2; 32])),
         };
         let mut packed = vec![0; Mint::get_packed_len() + 1];
         assert_eq!(
@@ -1195,14 +1207,14 @@ mod tests {
 
         // Account
         let check = Account {
-            mint: Pubkey::new(&[1; 32]),
-            owner: Pubkey::new(&[2; 32]),
+            mint: Pubkey::new_from_array([1; 32]),
+            owner: Pubkey::new_from_array([2; 32]),
             amount: 3,
-            delegate: COption::Some(Pubkey::new(&[4; 32])),
+            delegate: COption::Some(Pubkey::new_from_array([4; 32])),
             state: AccountState::Frozen,
             is_native: COption::Some(5),
             delegated_amount: 6,
-            close_authority: COption::Some(Pubkey::new(&[7; 32])),
+            close_authority: COption::Some(Pubkey::new_from_array([7; 32])),
         };
         let mut packed = vec![0; Account::get_packed_len() + 1];
         assert_eq!(
@@ -1233,7 +1245,7 @@ mod tests {
             m: 1,
             n: 2,
             is_initialized: true,
-            signers: [Pubkey::new(&[3; 32]); MAX_SIGNERS],
+            signers: [Pubkey::new_from_array([3; 32]); MAX_SIGNERS],
         };
         let mut packed = vec![0; Multisig::get_packed_len() + 1];
         assert_eq!(
@@ -2115,6 +2127,48 @@ mod tests {
         )
         .unwrap();
 
+        // not a delegate of source account
+        assert_eq!(
+            Err(TokenError::OwnerMismatch.into()),
+            do_process_instruction(
+                transfer(
+                    &program_id,
+                    &account_key,
+                    &account2_key,
+                    &owner2_key, // <-- incorrect owner or delegate
+                    &[],
+                    1,
+                )
+                .unwrap(),
+                vec![
+                    &mut account_account,
+                    &mut account2_account,
+                    &mut owner2_account,
+                ],
+            )
+        );
+
+        // insufficient funds approved via delegate
+        assert_eq!(
+            Err(TokenError::InsufficientFunds.into()),
+            do_process_instruction(
+                transfer(
+                    &program_id,
+                    &account_key,
+                    &account2_key,
+                    &delegate_key,
+                    &[],
+                    101
+                )
+                .unwrap(),
+                vec![
+                    &mut account_account,
+                    &mut account2_account,
+                    &mut delegate_account,
+                ],
+            )
+        );
+
         // transfer via delegate
         do_process_instruction(
             transfer(
@@ -2144,7 +2198,7 @@ mod tests {
                     &account2_key,
                     &delegate_key,
                     &[],
-                    100
+                    1
                 )
                 .unwrap(),
                 vec![
@@ -4503,18 +4557,31 @@ mod tests {
 
         // not a delegate of source account
         assert_eq!(
-            Err(TokenError::InsufficientFunds.into()),
+            Err(TokenError::OwnerMismatch.into()),
             do_process_instruction(
                 burn(
                     &program_id,
                     &account_key,
                     &mint_key,
-                    &owner_key,
+                    &owner2_key, // <-- incorrect owner or delegate
                     &[],
-                    100_000_000
+                    1,
                 )
                 .unwrap(),
-                vec![&mut account_account, &mut mint_account, &mut owner_account],
+                vec![&mut account_account, &mut mint_account, &mut owner2_account],
+            )
+        );
+
+        // insufficient funds approved via delegate
+        assert_eq!(
+            Err(TokenError::InsufficientFunds.into()),
+            do_process_instruction(
+                burn(&program_id, &account_key, &mint_key, &delegate_key, &[], 85).unwrap(),
+                vec![
+                    &mut account_account,
+                    &mut mint_account,
+                    &mut delegate_account
+                ],
             )
         );
 
@@ -4539,15 +4606,7 @@ mod tests {
         assert_eq!(
             Err(TokenError::OwnerMismatch.into()),
             do_process_instruction(
-                burn(
-                    &program_id,
-                    &account_key,
-                    &mint_key,
-                    &delegate_key,
-                    &[],
-                    100
-                )
-                .unwrap(),
+                burn(&program_id, &account_key, &mint_key, &delegate_key, &[], 1).unwrap(),
                 vec![
                     &mut account_account,
                     &mut mint_account,
@@ -6066,7 +6125,7 @@ mod tests {
         let account = Account::unpack_unchecked(&account_account.data).unwrap();
         assert_eq!(account.amount, u64::MAX);
 
-        // atttempt to mint one more to the other account
+        // attempt to mint one more to the other account
         assert_eq!(
             Err(TokenError::Overflow.into()),
             do_process_instruction(

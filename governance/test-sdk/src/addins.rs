@@ -1,7 +1,8 @@
-use lazy_static::lazy_static;
-
-use solana_program_test::find_file;
-use std::{process::Command, sync::Mutex};
+use {
+    lazy_static::lazy_static,
+    solana_program_test::find_file,
+    std::{process::Command, sync::Mutex},
+};
 
 lazy_static! {
     pub static ref VOTER_WEIGHT_ADDIN_BUILD_GUARD: Mutex::<u8> = Mutex::new(0);
@@ -12,7 +13,7 @@ pub fn ensure_addin_mock_is_built() {
         let _guard = VOTER_WEIGHT_ADDIN_BUILD_GUARD.lock().unwrap();
         if find_file("spl_governance_addin_mock.so").is_none() {
             assert!(Command::new("cargo")
-                .args(&[
+                .args([
                     "build-sbf",
                     "--manifest-path",
                     "../addin-mock/program/Cargo.toml",

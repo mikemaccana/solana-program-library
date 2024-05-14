@@ -1,7 +1,9 @@
 //! State transition types
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey;
+use {
+    borsh::{BorshDeserialize, BorshSerialize},
+    solana_program::pubkey::Pubkey,
+};
 
 /// Uninitialized version value, all instances are at least version 1
 pub const UNINITIALIZED_VERSION: u8 = 0;
@@ -83,7 +85,7 @@ mod test {
             decision: Decision::Fail,
         };
 
-        let packed = p.try_to_vec().unwrap();
+        let packed = borsh::to_vec(&p).unwrap();
 
         let unpacked = Pool::try_from_slice(packed.as_slice()).unwrap();
 

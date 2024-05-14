@@ -177,7 +177,7 @@ components associated with fees.
 
 If a mint is extended for fees, then transfers of tokens that pertains to the
 mint requires a transfer fee that is calculated as a percentage of the transfer
-amount. Specifically, a transaction fee is determined by two paramters:
+amount. Specifically, a transaction fee is determined by two parameters:
 
 - `bp`: The base point representing the fee rate. It is a positive integer that
   represents a percentage rate that is two points to the right of the decimal
@@ -187,9 +187,10 @@ amount. Specifically, a transaction fee is determined by two paramters:
   the fee rate of 1%, and `bp = 10000` represents the fee rate of 100%.
 
 - `max_fee`: the max fee rate. A transfer fee is calculated using the fee rate
-  that is determined by `bp`, but it is capped by `max_fee`. 
+  that is determined by `bp`, but it is capped by `max_fee`.
 
   For example, consider a transfer amount of 200 tokens.
+
   - For fee parameter `bp = 100` and `max_fee = 3`, the fee is simply 1% of the
     transfer amount, which is 2.
   - For fee parameter `bp = 200` and `max_fee = 3`, the fee is 3 since 2% of 200
@@ -221,7 +222,7 @@ The actual amount of a transfer fee cannot be included in the confidential
 extension `TransferWithFee` instruction in the clear since the transfer amount
 can be inferred from the fee. Therefore, in the confidential extension, the
 transfer fee is encrypted under the destination and withheld authority ElGamal
-public key. 
+public key.
 
 ```rust
 struct FeeEncryption {
@@ -264,15 +265,26 @@ We refer to the proof specifications below for the additional details.
 
 ## Sigma Protocols
 
-### Validity Proof
+### (Public-key) Validity Proof
 
-A validity proof certifies that a twisted ElGamal ciphertext is a well-formed
-ciphertext. The precise description of the system is specified in the following
-notes.
+A public-key validity proof certifies that a twisted ElGamal public-key is a
+well-formed public key. The precise description of the system is specified in
+the following notes.
+
+[[Notes]](./pubkey_proof.pdf)
+
+The public-key validity proof is required for the `ConfigureAccount`
+instruction.
+
+### (Ciphertext) Validity Proof
+
+A ciphertext validity proof certifies that a twisted ElGamal ciphertext is a
+well-formed ciphertext. The precise description of the system is specified in
+the following notes.
 
 [[Notes]](./validity_proof.pdf)
 
-Validity proofs is required for the `Withdraw`, `Transfer`, and
+Validity proofs are required for the `Withdraw`, `Transfer`, and
 `TransferWithFee` instructions. These instructions require the client to include
 twisted ElGamal ciphertexts as part of the instruction data. Validity proofs
 that are attached with these instructions certify that these ElGamal ciphertexts
@@ -306,7 +318,7 @@ specified in the following notes.
 [[Notes]](./equality_proof.pdf).
 
 Ciphertext-commitment equality proofs are required for the `Transfer` and
-`TransferWithFee` instructions. Ciphertext-ciphertext equaltiy proofs are
+`TransferWithFee` instructions. Ciphertext-ciphertext equality proofs are
 required for the `WithdrawWithheldTokensFromMint` and
 `WithdrawWithheldTokensFromAccounts` instructions.
 

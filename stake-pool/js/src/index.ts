@@ -9,21 +9,26 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js';
-import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, Token } from '@solana/spl-token';
+import {
+  createApproveInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAccount,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 import {
   ValidatorAccount,
-  addAssociatedTokenAccount,
   arrayChunk,
   calcLamportsWithdrawAmount,
   findStakeProgramAddress,
   findTransientStakeProgramAddress,
   findWithdrawAuthorityProgramAddress,
-  getTokenAccount,
   getValidatorListAccount,
   newStakeAccount,
   prepareWithdrawAccounts,
   lamportsToSol,
   solToLamports,
+  findEphemeralStakeProgramAddress,
+  findMetadataAddress,
 } from './utils';
 import { StakePoolInstruction } from './instructions';
 import {
@@ -36,6 +41,7 @@ import {
 } from './layouts';
 import { MAX_VALIDATORS_TO_UPDATE, MINIMUM_ACTIVE_STAKE, STAKE_POOL_PROGRAM_ID } from './constants';
 import { create } from 'superstruct';
+import BN from 'bn.js';
 
 export type { StakePool, AccountType, ValidatorList, ValidatorStakeInfo } from './layouts';
 export { STAKE_POOL_PROGRAM_ID } from './constants';
@@ -54,7 +60,7 @@ export interface StakePoolAccount {
 export interface WithdrawAccount {
   stakeAddress: PublicKey;
   voteAddress?: PublicKey;
-  poolAmount: number;
+  poolAmount: BN;
 }
 
 /**
@@ -64,6 +70,17 @@ export interface WithdrawAccount {
 export interface StakePoolAccounts {
   stakePool: StakePoolAccount | undefined;
   validatorList: ValidatorListAccount | undefined;
+}
+
+interface RedelegateProps {
+  connection: Connection;
+  stakePoolAddress: PublicKey;
+  sourceVoteAccount: PublicKey;
+  destinationVoteAccount: PublicKey;
+  sourceTransientStakeSeed: number | BN;
+  destinationTransientStakeSeed: number | BN;
+  ephemeralStakeSeed: number | BN;
+  lamports: number | BN;
 }
 
 /**
@@ -190,18 +207,18 @@ export async function depositStake(
 
   const poolMint = stakePool.account.data.poolMint;
 
-  let rentFee = 0;
-
   // Create token account if not specified
   if (!poolTokenReceiverAccount) {
-    const { associatedAddress, rentFee: fee } = await addAssociatedTokenAccount(
-      connection,
-      authorizedPubkey,
-      poolMint,
-      instructions,
+    const associatedAddress = getAssociatedTokenAddressSync(poolMint, authorizedPubkey);
+    instructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(
+        authorizedPubkey,
+        associatedAddress,
+        authorizedPubkey,
+        poolMint,
+      ),
     );
     poolTokenReceiverAccount = associatedAddress;
-    rentFee += fee;
   }
 
   instructions.push(
@@ -241,7 +258,6 @@ export async function depositStake(
   return {
     instructions,
     signers,
-    rentFee,
   };
 }
 
@@ -274,8 +290,6 @@ export async function depositSol(
   const signers: Signer[] = [userSolTransfer];
   const instructions: TransactionInstruction[] = [];
 
-  let rentFee = 0;
-
   // Create the ephemeral SOL account
   instructions.push(
     SystemProgram.transfer({
@@ -287,14 +301,16 @@ export async function depositSol(
 
   // Create token account if not specified
   if (!destinationTokenAccount) {
-    const { associatedAddress, rentFee: fee } = await addAssociatedTokenAccount(
-      connection,
-      from,
-      stakePool.poolMint,
-      instructions,
+    const associatedAddress = getAssociatedTokenAddressSync(stakePool.poolMint, from);
+    instructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(
+        from,
+        associatedAddress,
+        from,
+        stakePool.poolMint,
+      ),
     );
     destinationTokenAccount = associatedAddress;
-    rentFee += fee;
   }
 
   const withdrawAuthority = await findWithdrawAuthorityProgramAddress(
@@ -320,7 +336,6 @@ export async function depositSol(
   return {
     instructions,
     signers,
-    rentFee,
   };
 }
 
@@ -339,32 +354,19 @@ export async function withdrawStake(
   validatorComparator?: (_a: ValidatorAccount, _b: ValidatorAccount) => number,
 ) {
   const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
-  const poolAmount = solToLamports(amount);
+  const poolAmount = new BN(solToLamports(amount));
 
   if (!poolTokenAccount) {
-    poolTokenAccount = await Token.getAssociatedTokenAddress(
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
-      stakePool.account.data.poolMint,
-      tokenOwner,
-    );
+    poolTokenAccount = getAssociatedTokenAddressSync(stakePool.account.data.poolMint, tokenOwner);
   }
 
-  const tokenAccount = await getTokenAccount(
-    connection,
-    poolTokenAccount,
-    stakePool.account.data.poolMint,
-  );
-
-  if (!tokenAccount) {
-    throw new Error('Invalid token account');
-  }
+  const tokenAccount = await getAccount(connection, poolTokenAccount);
 
   // Check withdrawFrom balance
-  if (tokenAccount.amount.toNumber() < poolAmount) {
+  if (tokenAccount.amount < poolAmount.toNumber()) {
     throw new Error(
       `Not enough token balance to withdraw ${lamportsToSol(poolAmount)} pool tokens.
-        Maximum withdraw amount is ${lamportsToSol(tokenAccount.amount.toNumber())} pool tokens.`,
+        Maximum withdraw amount is ${lamportsToSol(tokenAccount.amount)} pool tokens.`,
     );
   }
 
@@ -392,7 +394,7 @@ export async function withdrawStake(
     });
   } else if (stakeReceiverAccount && stakeReceiverAccount?.type == 'delegated') {
     const voteAccount = stakeReceiverAccount.info?.stake?.delegation.voter;
-    if (!voteAccount) throw new Error(`Invalid stake reciever ${stakeReceiver} delegation`);
+    if (!voteAccount) throw new Error(`Invalid stake receiver ${stakeReceiver} delegation`);
     const validatorListAccount = await connection.getAccountInfo(
       stakePool.account.data.validatorList,
     );
@@ -401,7 +403,7 @@ export async function withdrawStake(
       val.voteAccountAddress.equals(voteAccount),
     );
     if (voteAccountAddress && voteAccountAddress !== voteAccount) {
-      throw new Error(`Provided withdrawal vote account ${voteAccountAddress} does not match delegation on stake receiver account ${voteAccount}, 
+      throw new Error(`Provided withdrawal vote account ${voteAccountAddress} does not match delegation on stake receiver account ${voteAccount},
       remove this flag or provide a different stake account delegated to ${voteAccountAddress}`);
     }
     if (isValidVoter) {
@@ -418,10 +420,10 @@ export async function withdrawStake(
 
       const availableForWithdrawal = calcLamportsWithdrawAmount(
         stakePool.account.data,
-        stakeAccount.lamports - MINIMUM_ACTIVE_STAKE - stakeAccountRentExemption,
+        new BN(stakeAccount.lamports - MINIMUM_ACTIVE_STAKE - stakeAccountRentExemption),
       );
 
-      if (availableForWithdrawal < poolAmount) {
+      if (availableForWithdrawal.lt(poolAmount)) {
         throw new Error(
           `Not enough lamports available for withdrawal from ${stakeAccountAddress},
             ${poolAmount} asked, ${availableForWithdrawal} available.`,
@@ -448,12 +450,18 @@ export async function withdrawStake(
       throw new Error('Invalid Stake Account');
     }
 
-    const availableForWithdrawal = calcLamportsWithdrawAmount(
-      stakePool.account.data,
+    const availableLamports = new BN(
       stakeAccount.lamports - MINIMUM_ACTIVE_STAKE - stakeAccountRentExemption,
     );
+    if (availableLamports.lt(new BN(0))) {
+      throw new Error('Invalid Stake Account');
+    }
+    const availableForWithdrawal = calcLamportsWithdrawAmount(
+      stakePool.account.data,
+      availableLamports,
+    );
 
-    if (availableForWithdrawal < poolAmount) {
+    if (availableForWithdrawal.lt(poolAmount)) {
       // noinspection ExceptionCaughtLocallyJS
       throw new Error(
         `Not enough lamports available for withdrawal from ${stakeAccountAddress},
@@ -486,13 +494,11 @@ export async function withdrawStake(
   const signers: Signer[] = [userTransferAuthority];
 
   instructions.push(
-    Token.createApproveInstruction(
-      TOKEN_PROGRAM_ID,
+    createApproveInstruction(
       poolTokenAccount,
       userTransferAuthority.publicKey,
       tokenOwner,
-      [],
-      poolAmount,
+      poolAmount.toNumber(),
     ),
   );
 
@@ -508,8 +514,9 @@ export async function withdrawStake(
       break;
     }
     // Convert pool tokens amount to lamports
-    const solWithdrawAmount = Math.ceil(
-      calcLamportsWithdrawAmount(stakePool.account.data, withdrawAccount.poolAmount),
+    const solWithdrawAmount = calcLamportsWithdrawAmount(
+      stakePool.account.data,
+      withdrawAccount.poolAmount,
     );
 
     let infoMsg = `Withdrawing ◎${solWithdrawAmount},
@@ -542,7 +549,7 @@ export async function withdrawStake(
         sourcePoolAccount: poolTokenAccount,
         managerFeeAccount: stakePool.account.data.managerFeeAccount,
         poolMint: stakePool.account.data.poolMint,
-        poolTokens: withdrawAccount.poolAmount,
+        poolTokens: withdrawAccount.poolAmount.toNumber(),
         withdrawAuthority,
       }),
     );
@@ -582,27 +589,18 @@ export async function withdrawSol(
   const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
   const poolAmount = solToLamports(amount);
 
-  const poolTokenAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
+  const poolTokenAccount = getAssociatedTokenAddressSync(
     stakePool.account.data.poolMint,
     tokenOwner,
   );
 
-  const tokenAccount = await getTokenAccount(
-    connection,
-    poolTokenAccount,
-    stakePool.account.data.poolMint,
-  );
-  if (!tokenAccount) {
-    throw new Error('Invalid token account');
-  }
+  const tokenAccount = await getAccount(connection, poolTokenAccount);
 
   // Check withdrawFrom balance
-  if (tokenAccount.amount.toNumber() < poolAmount) {
+  if (tokenAccount.amount < poolAmount) {
     throw new Error(
       `Not enough token balance to withdraw ${lamportsToSol(poolAmount)} pool tokens.
-          Maximum withdraw amount is ${lamportsToSol(tokenAccount.amount.toNumber())} pool tokens.`,
+          Maximum withdraw amount is ${lamportsToSol(tokenAccount.amount)} pool tokens.`,
     );
   }
 
@@ -612,12 +610,10 @@ export async function withdrawSol(
   const signers: Signer[] = [userTransferAuthority];
 
   instructions.push(
-    Token.createApproveInstruction(
-      TOKEN_PROGRAM_ID,
+    createApproveInstruction(
       poolTokenAccount,
       userTransferAuthority.publicKey,
       tokenOwner,
-      [],
       poolAmount,
     ),
   );
@@ -660,6 +656,112 @@ export async function withdrawSol(
   };
 }
 
+export async function addValidatorToPool(
+  connection: Connection,
+  stakePoolAddress: PublicKey,
+  validatorVote: PublicKey,
+  seed?: number,
+) {
+  const stakePoolAccount = await getStakePoolAccount(connection, stakePoolAddress);
+  const stakePool = stakePoolAccount.account.data;
+  const { reserveStake, staker, validatorList } = stakePool;
+
+  const validatorListAccount = await getValidatorListAccount(connection, validatorList);
+
+  const validatorInfo = validatorListAccount.account.data.validators.find(
+    (v) => v.voteAccountAddress.toBase58() == validatorVote.toBase58(),
+  );
+
+  if (validatorInfo) {
+    throw new Error('Vote account is already in validator list');
+  }
+
+  const withdrawAuthority = await findWithdrawAuthorityProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+  );
+
+  const validatorStake = await findStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    validatorVote,
+    stakePoolAddress,
+    seed,
+  );
+
+  const instructions: TransactionInstruction[] = [
+    StakePoolInstruction.addValidatorToPool({
+      stakePool: stakePoolAddress,
+      staker: staker,
+      reserveStake: reserveStake,
+      withdrawAuthority: withdrawAuthority,
+      validatorList: validatorList,
+      validatorStake: validatorStake,
+      validatorVote: validatorVote,
+    }),
+  ];
+
+  return {
+    instructions,
+  };
+}
+
+export async function removeValidatorFromPool(
+  connection: Connection,
+  stakePoolAddress: PublicKey,
+  validatorVote: PublicKey,
+  seed?: number,
+) {
+  const stakePoolAccount = await getStakePoolAccount(connection, stakePoolAddress);
+  const stakePool = stakePoolAccount.account.data;
+  const { staker, validatorList } = stakePool;
+
+  const validatorListAccount = await getValidatorListAccount(connection, validatorList);
+
+  const validatorInfo = validatorListAccount.account.data.validators.find(
+    (v) => v.voteAccountAddress.toBase58() == validatorVote.toBase58(),
+  );
+
+  if (!validatorInfo) {
+    throw new Error('Vote account is not already in validator list');
+  }
+
+  const withdrawAuthority = await findWithdrawAuthorityProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+  );
+
+  const validatorStake = await findStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    validatorVote,
+    stakePoolAddress,
+    seed,
+  );
+
+  const transientStakeSeed = validatorInfo.transientSeedSuffixStart;
+
+  const transientStake = await findTransientStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    validatorInfo.voteAccountAddress,
+    stakePoolAddress,
+    transientStakeSeed,
+  );
+
+  const instructions: TransactionInstruction[] = [
+    StakePoolInstruction.removeValidatorFromPool({
+      stakePool: stakePoolAddress,
+      staker: staker,
+      withdrawAuthority,
+      validatorList,
+      validatorStake,
+      transientStake,
+    }),
+  ];
+
+  return {
+    instructions,
+  };
+}
+
 /**
  * Creates instructions required to increase validator stake.
  */
@@ -668,6 +770,7 @@ export async function increaseValidatorStake(
   stakePoolAddress: PublicKey,
   validatorVote: PublicKey,
   lamports: number,
+  ephemeralStakeSeed?: number,
 ) {
   const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
 
@@ -689,7 +792,11 @@ export async function increaseValidatorStake(
     stakePoolAddress,
   );
 
-  const transientStakeSeed = validatorInfo.transientSeedSuffixStart.addn(1); // bump up by one to avoid reuse
+  // Bump transient seed suffix by one to avoid reuse when not using the increaseAdditionalStake instruction
+  const transientStakeSeed =
+    ephemeralStakeSeed == undefined
+      ? validatorInfo.transientSeedSuffixStart.addn(1)
+      : validatorInfo.transientSeedSuffixStart;
 
   const transientStake = await findTransientStakeProgramAddress(
     STAKE_POOL_PROGRAM_ID,
@@ -705,20 +812,45 @@ export async function increaseValidatorStake(
   );
 
   const instructions: TransactionInstruction[] = [];
-  instructions.push(
-    StakePoolInstruction.increaseValidatorStake({
-      stakePool: stakePoolAddress,
-      staker: stakePool.account.data.staker,
-      validatorList: stakePool.account.data.validatorList,
-      reserveStake: stakePool.account.data.reserveStake,
-      transientStakeSeed: transientStakeSeed.toNumber(),
-      withdrawAuthority,
-      transientStake,
-      validatorStake,
-      validatorVote,
-      lamports,
-    }),
-  );
+
+  if (ephemeralStakeSeed != undefined) {
+    const ephemeralStake = await findEphemeralStakeProgramAddress(
+      STAKE_POOL_PROGRAM_ID,
+      stakePoolAddress,
+      new BN(ephemeralStakeSeed),
+    );
+    instructions.push(
+      StakePoolInstruction.increaseAdditionalValidatorStake({
+        stakePool: stakePoolAddress,
+        staker: stakePool.account.data.staker,
+        validatorList: stakePool.account.data.validatorList,
+        reserveStake: stakePool.account.data.reserveStake,
+        transientStakeSeed: transientStakeSeed.toNumber(),
+        withdrawAuthority,
+        transientStake,
+        validatorStake,
+        validatorVote,
+        lamports,
+        ephemeralStake,
+        ephemeralStakeSeed,
+      }),
+    );
+  } else {
+    instructions.push(
+      StakePoolInstruction.increaseValidatorStake({
+        stakePool: stakePoolAddress,
+        staker: stakePool.account.data.staker,
+        validatorList: stakePool.account.data.validatorList,
+        reserveStake: stakePool.account.data.reserveStake,
+        transientStakeSeed: transientStakeSeed.toNumber(),
+        withdrawAuthority,
+        transientStake,
+        validatorStake,
+        validatorVote,
+        lamports,
+      }),
+    );
+  }
 
   return {
     instructions,
@@ -733,6 +865,7 @@ export async function decreaseValidatorStake(
   stakePoolAddress: PublicKey,
   validatorVote: PublicKey,
   lamports: number,
+  ephemeralStakeSeed?: number,
 ) {
   const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
   const validatorList = await getValidatorListAccount(
@@ -759,7 +892,11 @@ export async function decreaseValidatorStake(
     stakePoolAddress,
   );
 
-  const transientStakeSeed = validatorInfo.transientSeedSuffixStart.addn(1); // bump up by one to avoid reuse
+  // Bump transient seed suffix by one to avoid reuse when not using the decreaseAdditionalStake instruction
+  const transientStakeSeed =
+    ephemeralStakeSeed == undefined
+      ? validatorInfo.transientSeedSuffixStart.addn(1)
+      : validatorInfo.transientSeedSuffixStart;
 
   const transientStake = await findTransientStakeProgramAddress(
     STAKE_POOL_PROGRAM_ID,
@@ -769,18 +906,43 @@ export async function decreaseValidatorStake(
   );
 
   const instructions: TransactionInstruction[] = [];
-  instructions.push(
-    StakePoolInstruction.decreaseValidatorStake({
-      stakePool: stakePoolAddress,
-      staker: stakePool.account.data.staker,
-      validatorList: stakePool.account.data.validatorList,
-      transientStakeSeed: transientStakeSeed.toNumber(),
-      withdrawAuthority,
-      validatorStake,
-      transientStake,
-      lamports,
-    }),
-  );
+
+  if (ephemeralStakeSeed != undefined) {
+    const ephemeralStake = await findEphemeralStakeProgramAddress(
+      STAKE_POOL_PROGRAM_ID,
+      stakePoolAddress,
+      new BN(ephemeralStakeSeed),
+    );
+    instructions.push(
+      StakePoolInstruction.decreaseAdditionalValidatorStake({
+        stakePool: stakePoolAddress,
+        staker: stakePool.account.data.staker,
+        validatorList: stakePool.account.data.validatorList,
+        reserveStake: stakePool.account.data.reserveStake,
+        transientStakeSeed: transientStakeSeed.toNumber(),
+        withdrawAuthority,
+        validatorStake,
+        transientStake,
+        lamports,
+        ephemeralStake,
+        ephemeralStakeSeed,
+      }),
+    );
+  } else {
+    instructions.push(
+      StakePoolInstruction.decreaseValidatorStakeWithReserve({
+        stakePool: stakePoolAddress,
+        staker: stakePool.account.data.staker,
+        validatorList: stakePool.account.data.validatorList,
+        reserveStake: stakePool.account.data.reserveStake,
+        transientStakeSeed: transientStakeSeed.toNumber(),
+        withdrawAuthority,
+        validatorStake,
+        transientStake,
+        lamports,
+      }),
+    );
+  }
 
   return {
     instructions,
@@ -898,8 +1060,9 @@ export async function stakePoolInfo(connection: Connection, stakePoolAddress: Pu
     stakePoolAddress,
   );
 
-  const minimumReserveStakeBalance =
-    (await connection.getMinimumBalanceForRentExemption(StakeProgram.space)) + 1;
+  const minimumReserveStakeBalance = await connection.getMinimumBalanceForRentExemption(
+    StakeProgram.space,
+  );
 
   const stakeAccounts = await Promise.all(
     validatorList.account.data.validators.map(async (validator) => {
@@ -991,5 +1154,162 @@ export async function stakePoolInfo(connection: Connection, stakePoolAddress: Pu
       maxNumberOfValidators,
       updateRequired,
     }, // CliStakePoolDetails
+  };
+}
+
+/**
+ * Creates instructions required to redelegate stake.
+ */
+export async function redelegate(props: RedelegateProps) {
+  const {
+    connection,
+    stakePoolAddress,
+    sourceVoteAccount,
+    sourceTransientStakeSeed,
+    destinationVoteAccount,
+    destinationTransientStakeSeed,
+    ephemeralStakeSeed,
+    lamports,
+  } = props;
+  const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
+
+  const stakePoolWithdrawAuthority = await findWithdrawAuthorityProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+  );
+
+  const sourceValidatorStake = await findStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    sourceVoteAccount,
+    stakePoolAddress,
+  );
+
+  const sourceTransientStake = await findTransientStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    sourceVoteAccount,
+    stakePoolAddress,
+    new BN(sourceTransientStakeSeed),
+  );
+
+  const destinationValidatorStake = await findStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    destinationVoteAccount,
+    stakePoolAddress,
+  );
+
+  const destinationTransientStake = await findTransientStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    destinationVoteAccount,
+    stakePoolAddress,
+    new BN(destinationTransientStakeSeed),
+  );
+
+  const ephemeralStake = await findEphemeralStakeProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+    new BN(ephemeralStakeSeed),
+  );
+
+  const instructions: TransactionInstruction[] = [];
+
+  instructions.push(
+    StakePoolInstruction.redelegate({
+      stakePool: stakePool.pubkey,
+      staker: stakePool.account.data.staker,
+      validatorList: stakePool.account.data.validatorList,
+      reserveStake: stakePool.account.data.reserveStake,
+      stakePoolWithdrawAuthority,
+      ephemeralStake,
+      ephemeralStakeSeed,
+      sourceValidatorStake,
+      sourceTransientStake,
+      sourceTransientStakeSeed,
+      destinationValidatorStake,
+      destinationTransientStake,
+      destinationTransientStakeSeed,
+      validator: destinationVoteAccount,
+      lamports,
+    }),
+  );
+
+  return {
+    instructions,
+  };
+}
+
+/**
+ * Creates instructions required to create pool token metadata.
+ */
+export async function createPoolTokenMetadata(
+  connection: Connection,
+  stakePoolAddress: PublicKey,
+  payer: PublicKey,
+  name: string,
+  symbol: string,
+  uri: string,
+) {
+  const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
+
+  const withdrawAuthority = await findWithdrawAuthorityProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+  );
+  const tokenMetadata = findMetadataAddress(stakePool.account.data.poolMint);
+  const manager = stakePool.account.data.manager;
+
+  const instructions: TransactionInstruction[] = [];
+  instructions.push(
+    StakePoolInstruction.createTokenMetadata({
+      stakePool: stakePoolAddress,
+      poolMint: stakePool.account.data.poolMint,
+      payer,
+      manager,
+      tokenMetadata,
+      withdrawAuthority,
+      name,
+      symbol,
+      uri,
+    }),
+  );
+
+  return {
+    instructions,
+  };
+}
+
+/**
+ * Creates instructions required to update pool token metadata.
+ */
+export async function updatePoolTokenMetadata(
+  connection: Connection,
+  stakePoolAddress: PublicKey,
+  name: string,
+  symbol: string,
+  uri: string,
+) {
+  const stakePool = await getStakePoolAccount(connection, stakePoolAddress);
+
+  const withdrawAuthority = await findWithdrawAuthorityProgramAddress(
+    STAKE_POOL_PROGRAM_ID,
+    stakePoolAddress,
+  );
+
+  const tokenMetadata = findMetadataAddress(stakePool.account.data.poolMint);
+
+  const instructions: TransactionInstruction[] = [];
+  instructions.push(
+    StakePoolInstruction.updateTokenMetadata({
+      stakePool: stakePoolAddress,
+      manager: stakePool.account.data.manager,
+      tokenMetadata,
+      withdrawAuthority,
+      name,
+      symbol,
+      uri,
+    }),
+  );
+
+  return {
+    instructions,
   };
 }

@@ -1,10 +1,8 @@
 use {
     clap::{crate_description, crate_name, crate_version, Arg, Command},
     solana_clap_v3_utils::{
-        input_parsers::pubkey_of,
-        input_validators::{
-            is_url_or_moniker, is_valid_pubkey, is_valid_signer, normalize_to_url_if_moniker,
-        },
+        input_parsers::{parse_url_or_moniker, pubkey_of, signer::SignerSourceParserBuilder},
+        input_validators::normalize_to_url_if_moniker,
         keypair::{
             signer_from_path, signer_from_path_with_config, DefaultSigner, SignerFromPathConfig,
         },
@@ -29,7 +27,7 @@ use {
         token::Token,
     },
     spl_token_upgrade::{get_token_upgrade_authority_address, instruction::exchange},
-    std::{error::Error, process::exit, sync::Arc},
+    std::{error::Error, process::exit, rc::Rc, sync::Arc},
 };
 
 struct Config {
@@ -225,7 +223,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Arg::new("payer")
                 .long("payer")
                 .value_name("KEYPAIR")
-                .validator(|s| is_valid_signer(s))
+                .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                 .takes_value(true)
                 .global(true)
                 .help("Filepath or URL to a keypair [default: client keypair]"),
@@ -245,14 +243,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .value_name("URL")
                 .takes_value(true)
                 .global(true)
-                .validator(|s| is_url_or_moniker(s))
+                .value_parser(parse_url_or_moniker)
                 .help("JSON RPC URL for the cluster [default: value from configuration file]"),
         )
         .subcommand(
             Command::new("create-escrow").about("Create token account for the program escrow")
             .arg(
                 Arg::new("original_mint")
-                    .validator(|s| is_valid_pubkey(s))
+                .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .value_name("ADDRESS")
                     .required(true)
                     .takes_value(true)
@@ -261,7 +259,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             )
             .arg(
                 Arg::new("new_mint")
-                    .validator(|s| is_valid_pubkey(s))
+                .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .value_name("ADDRESS")
                     .required(true)
                     .takes_value(true)
@@ -271,7 +269,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .arg(
                 Arg::new("account_keypair")
                     .value_name("ACCOUNT_KEYPAIR")
-                    .validator(|s| is_valid_signer(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .takes_value(true)
                     .index(3)
                     .help("Specify the account keypair. This may be a keypair file or the ASK keyword. [default: associated token account for escrow authority]"),
@@ -281,7 +279,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Command::new("exchange").about("Exchange original tokens for new tokens")
             .arg(
                 Arg::new("original_mint")
-                    .validator(|s| is_valid_pubkey(s))
+                .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .value_name("ADDRESS")
                     .required(true)
                     .takes_value(true)
@@ -290,7 +288,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             )
             .arg(
                 Arg::new("new_mint")
-                    .validator(|s| is_valid_pubkey(s))
+                .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .value_name("ADDRESS")
                     .required(true)
                     .takes_value(true)
@@ -301,7 +299,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Arg::new("owner")
                     .long("owner")
                     .value_name("OWNER_KEYPAIR")
-                    .validator(|s| is_valid_signer(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .takes_value(true)
                     .help("Specify the owner or delegate for the burnt account. This may be a keypair file or the ASK keyword. [default: fee payer]"),
             )
@@ -309,7 +307,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Arg::new("burn_from")
                     .long("burn-from")
                     .value_name("BURN_TOKEN_ACCOUNT_ADDRESS")
-                    .validator(|s| is_valid_pubkey(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .takes_value(true)
                     .help("Specify the burnt account address. [default: associated token account for owner on original mint]"),
             )
@@ -317,7 +315,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Arg::new("escrow")
                     .long("escrow")
                     .value_name("ESCROW_TOKEN_ACCOUNT_ADDRESS")
-                    .validator(|s| is_valid_pubkey(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .takes_value(true)
                     .help("Specify the escrow account address to transfer from. [default: associated token account for the escrow authority on new mint]"),
             )
@@ -325,14 +323,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 Arg::new("destination")
                     .long("destination")
                     .value_name("DESTINATION_ACCOUNT_ADDRESS")
-                    .validator(|s| is_valid_pubkey(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .takes_value(true)
                     .help("Specify the destination account to receive new tokens. [default: associated token account for owner on new mint]"),
             )
             .arg(
                 Arg::new("multisig_signer")
                     .long("multisig-signer")
-                    .validator(|s| is_valid_signer(s))
+                    .value_parser(SignerSourceParserBuilder::default().allow_all().build())
                     .value_name("MULTISIG_SIGNER")
                     .takes_value(true)
                     .multiple(true)
@@ -344,7 +342,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .get_matches();
 
     let (command, matches) = app_matches.subcommand().unwrap();
-    let mut wallet_manager: Option<Arc<RemoteWalletManager>> = None;
+    let mut wallet_manager: Option<Rc<RemoteWalletManager>> = None;
 
     let config = {
         let cli_config = if let Some(config_file) = matches.value_of("config_file") {
@@ -356,14 +354,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let payer = DefaultSigner::new(
             "payer",
             matches
-                .value_of(&"payer")
+                .value_of("payer")
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| cli_config.keypair_path.clone()),
         );
 
         let json_rpc_url = normalize_to_url_if_moniker(
             matches
-                .value_of("json_rpc_url")
+                .get_one::<String>("json_rpc_url")
                 .unwrap_or(&cli_config.json_rpc_url),
         );
 
@@ -495,41 +493,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
 mod test {
     use {
         super::*,
-        solana_sdk::{bpf_loader, signer::keypair::Keypair},
-        solana_test_validator::{ProgramInfo, TestValidator, TestValidatorGenesis},
-        spl_token_client::client::{ProgramClient, SendTransaction},
+        solana_sdk::{bpf_loader_upgradeable, signer::keypair::Keypair},
+        solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
+        spl_token_client::client::{ProgramClient, SendTransaction, SimulateTransaction},
         std::path::PathBuf,
     };
 
     async fn new_validator_for_test() -> (TestValidator, Keypair) {
         solana_logger::setup();
         let mut test_validator_genesis = TestValidatorGenesis::default();
-        test_validator_genesis.add_programs_with_path(&[
-            ProgramInfo {
-                program_id: spl_token::id(),
-                loader: bpf_loader::id(),
-                program_path: PathBuf::from("../../target/deploy/spl_token.so"),
-            },
-            ProgramInfo {
-                program_id: spl_associated_token_account::id(),
-                loader: bpf_loader::id(),
-                program_path: PathBuf::from("../../target/deploy/spl_associated_token_account.so"),
-            },
-            ProgramInfo {
-                program_id: spl_token_2022::id(),
-                loader: bpf_loader::id(),
-                program_path: PathBuf::from("../../target/deploy/spl_token_2022.so"),
-            },
-            ProgramInfo {
-                program_id: spl_token_upgrade::id(),
-                loader: bpf_loader::id(),
-                program_path: PathBuf::from("../../target/deploy/spl_token_upgrade.so"),
-            },
-        ]);
+        test_validator_genesis.add_upgradeable_programs_with_path(&[UpgradeableProgramInfo {
+            program_id: spl_token_upgrade::id(),
+            loader: bpf_loader_upgradeable::id(),
+            program_path: PathBuf::from("../../target/deploy/spl_token_upgrade.so"),
+            upgrade_authority: Pubkey::new_unique(),
+        }]);
         test_validator_genesis.start_async().await
     }
 
-    async fn setup_mint<T: SendTransaction>(
+    async fn setup_mint<T: SendTransaction + SimulateTransaction>(
         program_id: &Pubkey,
         mint_authority: &Pubkey,
         decimals: u8,
@@ -582,17 +564,15 @@ mod test {
         .await;
 
         let account_keypair = Keypair::new();
-        assert!(matches!(
-            process_create_escrow_account(
-                &rpc_client,
-                &payer,
-                original_token.get_address(),
-                new_token.get_address(),
-                Some(&account_keypair)
-            )
-            .await,
-            Ok(_)
-        ));
+        assert!(process_create_escrow_account(
+            &rpc_client,
+            &payer,
+            original_token.get_address(),
+            new_token.get_address(),
+            Some(&account_keypair)
+        )
+        .await
+        .is_ok());
         let escrow_authority = get_token_upgrade_authority_address(
             original_token.get_address(),
             new_token.get_address(),
@@ -605,17 +585,15 @@ mod test {
         assert_eq!(escrow.base.owner, escrow_authority);
         assert_eq!(&escrow.base.mint, new_token.get_address());
 
-        assert!(matches!(
-            process_create_escrow_account(
-                &rpc_client,
-                &payer,
-                original_token.get_address(),
-                new_token.get_address(),
-                None
-            )
-            .await,
-            Ok(_)
-        ));
+        assert!(process_create_escrow_account(
+            &rpc_client,
+            &payer,
+            original_token.get_address(),
+            new_token.get_address(),
+            None
+        )
+        .await
+        .is_ok());
         let escrow = new_token
             .get_account_info(&new_token.get_associated_token_address(&escrow_authority))
             .await

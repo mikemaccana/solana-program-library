@@ -1,43 +1,45 @@
 //! Program state processor
 
-use crate::constraints::{SwapConstraints, SWAP_CONSTRAINTS};
-use crate::{
-    curve::{
-        base::SwapCurve,
-        calculator::{RoundDirection, TradeDirection},
-        fees::Fees,
+use {
+    crate::{
+        constraints::{SwapConstraints, SWAP_CONSTRAINTS},
+        curve::{
+            base::SwapCurve,
+            calculator::{RoundDirection, TradeDirection},
+            fees::Fees,
+        },
+        error::SwapError,
+        instruction::{
+            DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize, Swap,
+            SwapInstruction, WithdrawAllTokenTypes, WithdrawSingleTokenTypeExactAmountOut,
+        },
+        state::{SwapState, SwapV1, SwapVersion},
     },
-    error::SwapError,
-    instruction::{
-        DepositAllTokenTypes, DepositSingleTokenTypeExactAmountIn, Initialize, Swap,
-        SwapInstruction, WithdrawAllTokenTypes, WithdrawSingleTokenTypeExactAmountOut,
+    num_traits::FromPrimitive,
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        clock::Clock,
+        decode_error::DecodeError,
+        entrypoint::ProgramResult,
+        instruction::Instruction,
+        msg,
+        program::invoke_signed,
+        program_error::{PrintProgramError, ProgramError},
+        program_option::COption,
+        pubkey::Pubkey,
+        sysvar::Sysvar,
     },
-    state::{SwapState, SwapV1, SwapVersion},
-};
-use num_traits::FromPrimitive;
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    clock::Clock,
-    decode_error::DecodeError,
-    entrypoint::ProgramResult,
-    instruction::Instruction,
-    msg,
-    program::invoke_signed,
-    program_error::{PrintProgramError, ProgramError},
-    program_option::COption,
-    pubkey::Pubkey,
-    sysvar::Sysvar,
-};
-use spl_token_2022::{
-    check_spl_token_program_account,
-    error::TokenError,
-    extension::{
-        mint_close_authority::MintCloseAuthority, transfer_fee::TransferFeeConfig,
-        StateWithExtensions,
+    spl_token_2022::{
+        check_spl_token_program_account,
+        error::TokenError,
+        extension::{
+            mint_close_authority::MintCloseAuthority, transfer_fee::TransferFeeConfig,
+            BaseStateWithExtensions, StateWithExtensions,
+        },
+        state::{Account, Mint},
     },
-    state::{Account, Mint},
+    std::{convert::TryInto, error::Error},
 };
-use std::{convert::TryInto, error::Error};
 
 /// Program state handler.
 pub struct Processor {}
@@ -552,19 +554,19 @@ impl Processor {
             source_mint_decimals,
         )?;
 
-        let mut pool_token_amount = token_swap
-            .swap_curve()
-            .withdraw_single_token_type_exact_out(
-                result.owner_fee,
-                swap_token_a_amount,
-                swap_token_b_amount,
-                to_u128(pool_mint.supply)?,
-                trade_direction,
-                token_swap.fees(),
-            )
-            .ok_or(SwapError::FeeCalculationFailure)?;
-
-        if pool_token_amount > 0 {
+        if result.owner_fee > 0 {
+            let mut pool_token_amount = token_swap
+                .swap_curve()
+                .calculator
+                .withdraw_single_token_type_exact_out(
+                    result.owner_fee,
+                    swap_token_a_amount,
+                    swap_token_b_amount,
+                    to_u128(pool_mint.supply)?,
+                    trade_direction,
+                    RoundDirection::Floor,
+                )
+                .ok_or(SwapError::FeeCalculationFailure)?;
             // Allow error to fall through
             if let Ok(host_fee_account_info) = next_account_info(account_info_iter) {
                 let host_fee_account = Self::unpack_token_account(
@@ -1008,7 +1010,8 @@ impl Processor {
         Ok(())
     }
 
-    /// Processes a [WithdrawSingleTokenTypeExactAmountOut](enum.Instruction.html).
+    /// Processes a
+    /// [WithdrawSingleTokenTypeExactAmountOut](enum.Instruction.html).
     pub fn process_withdraw_single_token_type_exact_amount_out(
         program_id: &Pubkey,
         destination_token_amount: u64,
@@ -1271,39 +1274,43 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        curve::calculator::{CurveCalculator, INITIAL_SWAP_POOL_AMOUNT},
-        curve::{
-            base::CurveType, constant_price::ConstantPriceCurve,
-            constant_product::ConstantProductCurve, offset::OffsetCurve,
+    use {
+        super::*,
+        crate::{
+            curve::{
+                base::CurveType,
+                calculator::{CurveCalculator, INITIAL_SWAP_POOL_AMOUNT},
+                constant_price::ConstantPriceCurve,
+                constant_product::ConstantProductCurve,
+                offset::OffsetCurve,
+            },
+            instruction::{
+                deposit_all_token_types, deposit_single_token_type_exact_amount_in, initialize,
+                swap, withdraw_all_token_types, withdraw_single_token_type_exact_amount_out,
+            },
         },
-        instruction::{
-            deposit_all_token_types, deposit_single_token_type_exact_amount_in, initialize, swap,
-            withdraw_all_token_types, withdraw_single_token_type_exact_amount_out,
+        solana_program::{
+            clock::Clock, entrypoint::SUCCESS, instruction::Instruction, program_pack::Pack,
+            program_stubs, rent::Rent,
         },
-    };
-    use solana_program::{
-        clock::Clock, entrypoint::SUCCESS, instruction::Instruction, program_pack::Pack,
-        program_stubs, rent::Rent,
-    };
-    use solana_sdk::account::{
-        create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
-    };
-    use spl_token_2022::{
-        error::TokenError,
-        extension::{
-            transfer_fee::{instruction::initialize_transfer_fee_config, TransferFee},
-            ExtensionType,
+        solana_sdk::account::{
+            create_account_for_test, create_is_signer_account_infos, Account as SolanaAccount,
         },
-        instruction::{
-            approve, close_account, freeze_account, initialize_account, initialize_immutable_owner,
-            initialize_mint, initialize_mint_close_authority, mint_to, revoke, set_authority,
-            AuthorityType,
+        spl_token_2022::{
+            error::TokenError,
+            extension::{
+                transfer_fee::{instruction::initialize_transfer_fee_config, TransferFee},
+                ExtensionType,
+            },
+            instruction::{
+                approve, close_account, freeze_account, initialize_account,
+                initialize_immutable_owner, initialize_mint, initialize_mint_close_authority,
+                mint_to, revoke, set_authority, AuthorityType,
+            },
         },
+        std::sync::Arc,
+        test_case::test_case,
     };
-    use std::sync::Arc;
-    use test_case::test_case;
 
     // Test program id for the swap program.
     const SWAP_PROGRAM_ID: Pubkey = Pubkey::new_from_array([2u8; 32]);
@@ -2154,10 +2161,11 @@ mod tests {
     ) -> (Pubkey, SolanaAccount) {
         let account_key = Pubkey::new_unique();
         let space = if *program_id == spl_token_2022::id() {
-            ExtensionType::get_account_len::<Account>(&[
+            ExtensionType::try_calculate_account_len::<Account>(&[
                 ExtensionType::ImmutableOwner,
                 ExtensionType::TransferFeeAmount,
             ])
+            .unwrap()
         } else {
             Account::get_packed_len()
         };
@@ -2217,12 +2225,16 @@ mod tests {
         let mint_key = Pubkey::new_unique();
         let space = if *program_id == spl_token_2022::id() {
             if close_authority.is_some() {
-                ExtensionType::get_account_len::<Mint>(&[
+                ExtensionType::try_calculate_account_len::<Mint>(&[
                     ExtensionType::MintCloseAuthority,
                     ExtensionType::TransferFeeConfig,
                 ])
+                .unwrap()
             } else {
-                ExtensionType::get_account_len::<Mint>(&[ExtensionType::TransferFeeConfig])
+                ExtensionType::try_calculate_account_len::<Mint>(&[
+                    ExtensionType::TransferFeeConfig,
+                ])
+                .unwrap()
             }
         } else {
             Mint::get_packed_len()
@@ -3840,7 +3852,7 @@ mod tests {
             accounts.pool_mint_account = old_pool_account;
         }
 
-        // deposit 1 pool token fails beacuse it equates to 0 swap tokens
+        // deposit 1 pool token fails because it equates to 0 swap tokens
         {
             let (
                 token_a_key,
@@ -6184,16 +6196,21 @@ mod tests {
             initial_b + to_u64(results.destination_amount_swapped).unwrap()
         );
 
-        let first_fee = swap_curve
-            .withdraw_single_token_type_exact_out(
-                results.owner_fee,
-                token_a_amount.try_into().unwrap(),
-                token_b_amount.try_into().unwrap(),
-                initial_supply.try_into().unwrap(),
-                TradeDirection::AtoB,
-                &fees,
-            )
-            .unwrap();
+        let first_fee = if results.owner_fee > 0 {
+            swap_curve
+                .calculator
+                .withdraw_single_token_type_exact_out(
+                    results.owner_fee,
+                    token_a_amount.try_into().unwrap(),
+                    token_b_amount.try_into().unwrap(),
+                    initial_supply.try_into().unwrap(),
+                    TradeDirection::AtoB,
+                    RoundDirection::Floor,
+                )
+                .unwrap()
+        } else {
+            0
+        };
         let fee_account =
             StateWithExtensions::<Account>::unpack(&accounts.pool_fee_account.data).unwrap();
         assert_eq!(
@@ -6268,16 +6285,21 @@ mod tests {
                 - to_u64(results.source_amount_swapped).unwrap()
         );
 
-        let second_fee = swap_curve
-            .withdraw_single_token_type_exact_out(
-                results.owner_fee,
-                token_a_amount.try_into().unwrap(),
-                token_b_amount.try_into().unwrap(),
-                initial_supply.try_into().unwrap(),
-                TradeDirection::BtoA,
-                &fees,
-            )
-            .unwrap();
+        let second_fee = if results.owner_fee > 0 {
+            swap_curve
+                .calculator
+                .withdraw_single_token_type_exact_out(
+                    results.owner_fee,
+                    token_a_amount.try_into().unwrap(),
+                    token_b_amount.try_into().unwrap(),
+                    initial_supply.try_into().unwrap(),
+                    TradeDirection::BtoA,
+                    RoundDirection::Floor,
+                )
+                .unwrap()
+        } else {
+            0
+        };
         let fee_account =
             StateWithExtensions::<Account>::unpack(&accounts.pool_fee_account.data).unwrap();
         assert_eq!(

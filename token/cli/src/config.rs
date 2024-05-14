@@ -1,28 +1,53 @@
-use crate::{signers_of, Error, MULTISIG_SIGNER_ARG};
-use clap::ArgMatches;
-use solana_clap_utils::{
-    input_parsers::{pubkey_of_signer, value_of},
-    input_validators::normalize_to_url_if_moniker,
-    keypair::{signer_from_path, signer_from_path_with_config, SignerFromPathConfig},
-    nonce::{NONCE_ARG, NONCE_AUTHORITY_ARG},
-    offline::{BLOCKHASH_ARG, DUMP_TRANSACTION_MESSAGE, SIGN_ONLY_ARG},
+use {
+    crate::clap_app::{Error, COMPUTE_UNIT_LIMIT_ARG, COMPUTE_UNIT_PRICE_ARG, MULTISIG_SIGNER_ARG},
+    clap::ArgMatches,
+    solana_clap_utils::{
+        input_parsers::{pubkey_of_signer, value_of},
+        input_validators::normalize_to_url_if_moniker,
+        keypair::{signer_from_path, signer_from_path_with_config, SignerFromPathConfig},
+        nonce::{NONCE_ARG, NONCE_AUTHORITY_ARG},
+        offline::{BLOCKHASH_ARG, DUMP_TRANSACTION_MESSAGE, SIGN_ONLY_ARG},
+    },
+    solana_cli_output::OutputFormat,
+    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_remote_wallet::remote_wallet::RemoteWalletManager,
+    solana_sdk::{
+        account::Account as RawAccount, commitment_config::CommitmentConfig, hash::Hash,
+        pubkey::Pubkey, signature::Signer,
+    },
+    spl_associated_token_account::*,
+    spl_token_2022::{
+        extension::StateWithExtensionsOwned,
+        state::{Account, Mint},
+    },
+    spl_token_client::{
+        client::{
+            ProgramClient, ProgramOfflineClient, ProgramRpcClient, ProgramRpcClientSendTransaction,
+        },
+        token::ComputeUnitLimit,
+    },
+    std::{process::exit, rc::Rc, sync::Arc},
 };
-use solana_cli_output::OutputFormat;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_remote_wallet::remote_wallet::RemoteWalletManager;
-use solana_sdk::{
-    account::Account as RawAccount, commitment_config::CommitmentConfig, pubkey::Pubkey,
-    signature::Signer,
-};
-use spl_associated_token_account::*;
-use spl_token_2022::{
-    extension::StateWithExtensionsOwned,
-    state::{Account, Mint},
-};
-use spl_token_client::client::{
-    ProgramClient, ProgramOfflineClient, ProgramRpcClient, ProgramRpcClientSendTransaction,
-};
-use std::{process::exit, sync::Arc};
+
+type SignersOf = Vec<(Arc<dyn Signer>, Pubkey)>;
+fn signers_of(
+    matches: &ArgMatches<'_>,
+    name: &str,
+    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+) -> Result<Option<SignersOf>, Box<dyn std::error::Error>> {
+    if let Some(values) = matches.values_of(name) {
+        let mut results = Vec::new();
+        for (i, value) in values.enumerate() {
+            let name = format!("{}-{}", name, i.saturating_add(1));
+            let signer = signer_from_path(matches, value, &name, wallet_manager)?;
+            let signer_pubkey = signer.pubkey();
+            results.push((Arc::from(signer), signer_pubkey));
+        }
+        Ok(Some(results))
+    } else {
+        Ok(None)
+    }
+}
 
 pub(crate) struct MintInfo {
     pub program_id: Pubkey,
@@ -30,26 +55,29 @@ pub(crate) struct MintInfo {
     pub decimals: u8,
 }
 
-pub(crate) struct Config<'a> {
-    pub(crate) default_signer: Option<Arc<dyn Signer>>,
-    pub(crate) rpc_client: Arc<RpcClient>,
-    pub(crate) program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,
-    pub(crate) websocket_url: String,
-    pub(crate) output_format: OutputFormat,
-    pub(crate) fee_payer: Option<Arc<dyn Signer>>,
-    pub(crate) nonce_account: Option<Pubkey>,
-    pub(crate) nonce_authority: Option<Pubkey>,
-    pub(crate) sign_only: bool,
-    pub(crate) dump_transaction_message: bool,
-    pub(crate) multisigner_pubkeys: Vec<&'a Pubkey>,
-    pub(crate) program_id: Pubkey,
-    pub(crate) restrict_to_program_id: bool,
+pub struct Config<'a> {
+    pub default_signer: Option<Arc<dyn Signer>>,
+    pub rpc_client: Arc<RpcClient>,
+    pub program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,
+    pub websocket_url: String,
+    pub output_format: OutputFormat,
+    pub fee_payer: Option<Arc<dyn Signer>>,
+    pub nonce_account: Option<Pubkey>,
+    pub nonce_authority: Option<Arc<dyn Signer>>,
+    pub nonce_blockhash: Option<Hash>,
+    pub sign_only: bool,
+    pub dump_transaction_message: bool,
+    pub multisigner_pubkeys: Vec<&'a Pubkey>,
+    pub program_id: Pubkey,
+    pub restrict_to_program_id: bool,
+    pub compute_unit_price: Option<u64>,
+    pub compute_unit_limit: ComputeUnitLimit,
 }
 
 impl<'a> Config<'a> {
-    pub(crate) async fn new(
+    pub async fn new(
         matches: &ArgMatches<'_>,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
         bulk_signers: &mut Vec<Arc<dyn Signer>>,
         multisigner_ids: &'a mut Vec<Pubkey>,
     ) -> Config<'a> {
@@ -98,23 +126,12 @@ impl<'a> Config<'a> {
         .await
     }
 
-    pub(crate) async fn new_with_clients_and_ws_url(
+    fn extract_multisig_signers(
         matches: &ArgMatches<'_>,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
         bulk_signers: &mut Vec<Arc<dyn Signer>>,
         multisigner_ids: &'a mut Vec<Pubkey>,
-        rpc_client: Arc<RpcClient>,
-        program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,
-        websocket_url: String,
-    ) -> Config<'a> {
-        let cli_config = if let Some(config_file) = matches.value_of("config_file") {
-            solana_cli_config::Config::load(config_file).unwrap_or_else(|_| {
-                eprintln!("error: Could not find config file `{}`", config_file);
-                exit(1);
-            })
-        } else {
-            solana_cli_config::Config::default()
-        };
+    ) -> Vec<&'a Pubkey> {
         let multisig_signers = signers_of(matches, MULTISIG_SIGNER_ARG.name, wallet_manager)
             .unwrap_or_else(|e| {
                 eprintln!("error: {}", e);
@@ -126,7 +143,30 @@ impl<'a> Config<'a> {
             bulk_signers.extend(signers);
             multisigner_ids.extend(pubkeys);
         }
-        let multisigner_pubkeys = multisigner_ids.iter().collect::<Vec<_>>();
+        multisigner_ids.iter().collect::<Vec<_>>()
+    }
+
+    pub async fn new_with_clients_and_ws_url(
+        matches: &ArgMatches<'_>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+        bulk_signers: &mut Vec<Arc<dyn Signer>>,
+        multisigner_ids: &'a mut Vec<Pubkey>,
+        rpc_client: Arc<RpcClient>,
+        program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,
+        websocket_url: String,
+    ) -> Config<'a> {
+        let cli_config = if let Some(config_file) = matches.value_of("config_file") {
+            solana_cli_config::Config::load(config_file).unwrap_or_else(|_| {
+                eprintln!("error: Could not find config file `{}`", config_file);
+                exit(1);
+            })
+        } else if let Some(config_file) = &*solana_cli_config::CONFIG_FILE {
+            solana_cli_config::Config::load(config_file).unwrap_or_default()
+        } else {
+            solana_cli_config::Config::default()
+        };
+        let multisigner_pubkeys =
+            Self::extract_multisig_signers(matches, wallet_manager, bulk_signers, multisigner_ids);
 
         let config = SignerFromPathConfig {
             allow_null_signer: !multisigner_pubkeys.is_empty(),
@@ -193,7 +233,7 @@ impl<'a> Config<'a> {
                 exit(1);
             });
         let nonce_authority = if nonce_account.is_some() {
-            let (signer, nonce_authority) = signer_from_path(
+            let (nonce_authority, _) = signer_from_path(
                 matches,
                 matches
                     .value_of(NONCE_AUTHORITY_ARG.name)
@@ -210,9 +250,6 @@ impl<'a> Config<'a> {
                 eprintln!("error: {}", e);
                 exit(1);
             });
-            if !bulk_signers.contains(&signer) {
-                bulk_signers.push(signer);
-            }
 
             Some(nonce_authority)
         } else {
@@ -246,6 +283,32 @@ impl<'a> Config<'a> {
                 (default_program_id, false)
             };
 
+        // need to specify a compute limit if compute price and blockhash are specified
+        if matches.is_present(BLOCKHASH_ARG.name)
+            && matches.is_present(COMPUTE_UNIT_PRICE_ARG.name)
+            && !matches.is_present(COMPUTE_UNIT_LIMIT_ARG.name)
+        {
+            clap::Error::with_description(
+                &format!(
+                    "Need to set `{}` if `{}` and `--{}` are set",
+                    COMPUTE_UNIT_LIMIT_ARG.long, COMPUTE_UNIT_PRICE_ARG.long, BLOCKHASH_ARG.long,
+                ),
+                clap::ErrorKind::MissingRequiredArgument,
+            )
+            .exit();
+        }
+
+        let nonce_blockhash = value_of(matches, BLOCKHASH_ARG.name);
+        let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
+        let compute_unit_limit = value_of(matches, COMPUTE_UNIT_LIMIT_ARG.name)
+            .map(ComputeUnitLimit::Static)
+            .unwrap_or_else(|| {
+                if nonce_blockhash.is_some() {
+                    ComputeUnitLimit::Default
+                } else {
+                    ComputeUnitLimit::Simulated
+                }
+            });
         Self {
             default_signer,
             rpc_client,
@@ -255,11 +318,14 @@ impl<'a> Config<'a> {
             fee_payer,
             nonce_account,
             nonce_authority,
+            nonce_blockhash,
             sign_only,
             dump_transaction_message,
             multisigner_pubkeys,
             program_id,
             restrict_to_program_id,
+            compute_unit_price,
+            compute_unit_limit,
         }
     }
 
@@ -269,21 +335,21 @@ impl<'a> Config<'a> {
             Ok(default_signer.clone())
         } else {
             Err("default signer is required, please specify a valid default signer by identifying a \
-                 valid configuration file using the --config-file argument, or by creating a valid \
-                 config at the default location of ~/.config/solana/cli/config.yml using the solana \
-                 config command".to_string().into())
+                 valid configuration file using the --config argument, or by creating a valid config \
+                 at the default location of ~/.config/solana/cli/config.yml using the solana config \
+                 command".to_string().into())
         }
     }
 
     // Returns Ok(fee payer), or Err if there is no fee payer configured
-    pub(crate) fn fee_payer(&self) -> Result<Arc<dyn Signer>, Error> {
+    pub fn fee_payer(&self) -> Result<Arc<dyn Signer>, Error> {
         if let Some(fee_payer) = &self.fee_payer {
             Ok(fee_payer.clone())
         } else {
-            Err("fee payer is required, please specify a valid fee payer using the --fee_payer argument, \
-                 or by identifying a valid configuration file using the --config-file argument, or by \
-                 creating a valid config at the default location of ~/.config/solana/cli/config.yml using \
-                 the solana config command".to_string().into())
+            Err("fee payer is required, please specify a valid fee payer using the --fee-payer argument, \
+                 or by identifying a valid configuration file using the --config argument, or by creating \
+                 a valid config at the default location of ~/.config/solana/cli/config.yml using the solana \
+                 config command".to_string().into())
         }
     }
 
@@ -293,9 +359,10 @@ impl<'a> Config<'a> {
         &self,
         arg_matches: &ArgMatches<'_>,
         override_name: &str,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
     ) -> Result<Pubkey, Error> {
-        let token = pubkey_of_signer(arg_matches, "token", wallet_manager).unwrap();
+        let token = pubkey_of_signer(arg_matches, "token", wallet_manager)
+            .map_err(|e| -> Error { e.to_string().into() })?;
         self.associated_token_address_for_token_or_override(
             arg_matches,
             override_name,
@@ -311,16 +378,17 @@ impl<'a> Config<'a> {
         &self,
         arg_matches: &ArgMatches<'_>,
         override_name: &str,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
         token: Option<Pubkey>,
     ) -> Result<Pubkey, Error> {
-        if let Some(address) = pubkey_of_signer(arg_matches, override_name, wallet_manager).unwrap()
+        if let Some(address) = pubkey_of_signer(arg_matches, override_name, wallet_manager)
+            .map_err(|e| -> Error { e.to_string().into() })?
         {
             return Ok(address);
         }
 
         let token = token.unwrap();
-        let program_id = self.get_mint_info(&token, None).await.unwrap().program_id;
+        let program_id = self.get_mint_info(&token, None).await?.program_id;
         let owner = self.pubkey_or_default(arg_matches, "owner", wallet_manager)?;
         self.associated_token_address_for_token_and_program(&token, &owner, &program_id)
     }
@@ -336,14 +404,16 @@ impl<'a> Config<'a> {
         ))
     }
 
-    // Checks if an explicit address was provided, otherwise return the default address if there is one
+    // Checks if an explicit address was provided, otherwise return the default
+    // address if there is one
     pub(crate) fn pubkey_or_default(
         &self,
         arg_matches: &ArgMatches<'_>,
         address_name: &str,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
     ) -> Result<Pubkey, Error> {
-        if let Some(address) = pubkey_of_signer(arg_matches, address_name, wallet_manager).unwrap()
+        if let Some(address) = pubkey_of_signer(arg_matches, address_name, wallet_manager)
+            .map_err(|e| -> Error { e.to_string().into() })?
         {
             return Ok(address);
         }
@@ -351,12 +421,13 @@ impl<'a> Config<'a> {
         Ok(self.default_signer()?.pubkey())
     }
 
-    // Checks if an explicit signer was provided, otherwise return the default signer.
+    // Checks if an explicit signer was provided, otherwise return the default
+    // signer.
     pub(crate) fn signer_or_default(
         &self,
         arg_matches: &ArgMatches,
         authority_name: &str,
-        wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
     ) -> (Arc<dyn Signer>, Pubkey) {
         // If there are `--multisig-signers` on the command line, allow `NullSigner`s to
         // be returned for multisig account addresses

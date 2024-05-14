@@ -6,6 +6,7 @@ export {
 export * from './instructions';
 export * from './accounts';
 export * from './events';
-export * from './utils';
+export * from './constants';
 export * from './types';
+export * from './merkle-tree';
 export type { ChangeLogEventV1 } from './types';

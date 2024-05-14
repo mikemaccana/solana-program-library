@@ -1,3 +1,17 @@
+export {
+    createInitializeInstruction,
+    createUpdateFieldInstruction,
+    createRemoveKeyInstruction,
+    createUpdateAuthorityInstruction,
+    createEmitInstruction,
+} from '@solana/spl-token-metadata';
+export {
+    createInitializeGroupInstruction,
+    createUpdateGroupMaxSizeInstruction,
+    createUpdateGroupAuthorityInstruction,
+    createInitializeMemberInstruction,
+} from '@solana/spl-token-group';
+
 export * from './associatedTokenAccount.js';
 export * from './decode.js';
 export * from './types.js';
@@ -30,3 +44,4 @@ export * from './initializeMintCloseAuthority.js'; //  25
 export * from './reallocate.js'; //                    29
 export * from './createNativeMint.js'; //              31
 export * from './initializeNonTransferableMint.js'; // 32
+export * from './initializePermanentDelegate.js'; //   35

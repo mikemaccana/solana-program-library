@@ -10,13 +10,16 @@ use {
     },
     spl_token_2022::{
         error::TokenError,
-        extension::{transfer_fee::TransferFee, ExtensionType},
+        extension::{
+            immutable_owner::ImmutableOwner, transfer_fee::TransferFee, BaseStateWithExtensions,
+            ExtensionType,
+        },
     },
     spl_token_client::token::{ExtensionInitializationParams, TokenError as TokenClientError},
 };
 
 #[tokio::test]
-async fn transfer_checked() {
+async fn transfer() {
     let test_transfer_amount = 100;
     let mut context = TestContext::new().await;
     context
@@ -27,6 +30,7 @@ async fn transfer_checked() {
     let TokenContext {
         mint_authority,
         token,
+        token_unchecked,
         alice,
         bob,
         ..
@@ -39,6 +43,14 @@ async fn transfer_checked() {
         .unwrap();
     let alice_account = alice.pubkey();
 
+    // immutable ownership is added to alice's account during initialization
+    token
+        .get_account_info(&alice_account)
+        .await
+        .unwrap()
+        .get_extension::<ImmutableOwner>()
+        .unwrap();
+
     token
         .create_auxiliary_token_account_with_extension_space(
             &bob,
@@ -49,8 +61,8 @@ async fn transfer_checked() {
         .unwrap();
     let bob_account = bob.pubkey();
 
-    // mint fails because the account does not have immutable ownership
-    let error = token
+    // mint to alice should be successful
+    token
         .mint_to(
             &alice_account,
             &mint_authority.pubkey(),
@@ -58,19 +70,8 @@ async fn transfer_checked() {
             &[&mint_authority],
         )
         .await
-        .unwrap_err();
+        .unwrap();
 
-    assert_eq!(
-        error,
-        TokenClientError::Client(Box::new(TransportError::TransactionError(
-            TransactionError::InstructionError(
-                0,
-                InstructionError::Custom(TokenError::NonTransferableNeedsImmutableOwnership as u32)
-            )
-        )))
-    );
-
-    // mint succeeds if the account has immutable ownership
     token
         .mint_to(
             &bob_account,
@@ -124,6 +125,28 @@ async fn transfer_checked() {
             )
         )))
     );
+
+    // regular unchecked transfer fails
+    let error = token_unchecked
+        .transfer(
+            &bob_account,
+            &alice_account,
+            &bob.pubkey(),
+            test_transfer_amount,
+            &[&bob],
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        TokenClientError::Client(Box::new(TransportError::TransactionError(
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(TokenError::NonTransferable as u32)
+            )
+        )))
+    );
 }
 
 #[tokio::test]
@@ -158,6 +181,7 @@ async fn transfer_checked_with_fee() {
     let TokenContext {
         mint_authority,
         token,
+        token_unchecked,
         alice,
         bob,
         ..
@@ -218,6 +242,28 @@ async fn transfer_checked_with_fee() {
 
     // regular transfer fails
     let error = token
+        .transfer(
+            &alice_account,
+            &bob_account,
+            &alice.pubkey(),
+            test_transfer_amount,
+            &[&alice],
+        )
+        .await
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        TokenClientError::Client(Box::new(TransportError::TransactionError(
+            TransactionError::InstructionError(
+                0,
+                InstructionError::Custom(TokenError::NonTransferable as u32)
+            )
+        )))
+    );
+
+    // unchecked transfer fails
+    let error = token_unchecked
         .transfer(
             &alice_account,
             &bob_account,

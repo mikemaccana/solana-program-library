@@ -4,15 +4,15 @@ use solana_program_test::*;
 
 mod program_test;
 
-use program_test::args::*;
-use program_test::*;
-use spl_governance::{error::GovernanceError, state::enums::ProposalState};
+use {
+    program_test::{args::*, *},
+    spl_governance::{error::GovernanceError, state::enums::ProposalState},
+};
 
 #[tokio::test]
 async fn test_cast_vote_with_community_max_voter_weight_addin() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -31,11 +31,7 @@ async fn test_cast_vote_with_community_max_voter_weight_addin() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -63,7 +59,6 @@ async fn test_cast_vote_with_community_max_voter_weight_addin() {
 async fn test_cast_vote_with_council_max_voter_weight_addin() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COUNCIL_MAX_VOTER_WEIGHT)
@@ -82,11 +77,7 @@ async fn test_cast_vote_with_council_max_voter_weight_addin() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -114,7 +105,6 @@ async fn test_cast_vote_with_council_max_voter_weight_addin() {
 async fn test_tip_vote_with_max_voter_weight_addin() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -133,11 +123,7 @@ async fn test_tip_vote_with_max_voter_weight_addin() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -166,7 +152,6 @@ async fn test_tip_vote_with_max_voter_weight_addin() {
 async fn test_tip_vote_with_max_voter_weight_addin_and_max_below_total_cast_votes() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -185,11 +170,7 @@ async fn test_tip_vote_with_max_voter_weight_addin_and_max_below_total_cast_vote
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -211,14 +192,14 @@ async fn test_tip_vote_with_max_voter_weight_addin_and_max_below_total_cast_vote
         .await;
 
     assert_eq!(proposal_account.state, ProposalState::Succeeded);
-    assert_eq!(proposal_account.max_vote_weight, Some(100)); // Adjusted max based on cast votes
+    // Adjusted max based on cast votes
+    assert_eq!(proposal_account.max_vote_weight, Some(100));
 }
 
 #[tokio::test]
 async fn test_finalize_vote_with_max_voter_weight_addin() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -237,11 +218,7 @@ async fn test_finalize_vote_with_max_voter_weight_addin() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -291,7 +268,6 @@ async fn test_finalize_vote_with_max_voter_weight_addin() {
 async fn test_finalize_vote_with_max_voter_weight_addin_and_max_below_total_cast_votes() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -310,11 +286,7 @@ async fn test_finalize_vote_with_max_voter_weight_addin_and_max_below_total_cast
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -357,14 +329,14 @@ async fn test_finalize_vote_with_max_voter_weight_addin_and_max_below_total_cast
         .await;
 
     assert_eq!(proposal_account.state, ProposalState::Succeeded);
-    assert_eq!(proposal_account.max_vote_weight, Some(100)); // Adjusted max based on cast votes
+    // Adjusted max based on cast votes
+    assert_eq!(proposal_account.max_vote_weight, Some(100));
 }
 
 #[tokio::test]
 async fn test_cast_vote_with_max_voter_weight_addin_and_expired_record_error() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_with_max_voter_weight_addin().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let realm_cookie = governance_test
         .with_realm_using_addins(PluginSetupArgs::COMMUNITY_MAX_VOTER_WEIGHT)
@@ -383,11 +355,7 @@ async fn test_cast_vote_with_max_voter_weight_addin_and_expired_record_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 

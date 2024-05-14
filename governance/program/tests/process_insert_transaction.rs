@@ -2,10 +2,7 @@
 
 mod program_test;
 
-use solana_program_test::tokio;
-
-use program_test::*;
-use spl_governance::error::GovernanceError;
+use {program_test::*, solana_program_test::tokio, spl_governance::error::GovernanceError};
 
 #[tokio::test]
 async fn test_insert_transaction() {
@@ -13,7 +10,6 @@ async fn test_insert_transaction() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -21,11 +17,7 @@ async fn test_insert_transaction() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -68,7 +60,6 @@ async fn test_insert_multiple_transactions() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -76,11 +67,7 @@ async fn test_insert_multiple_transactions() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -119,7 +106,6 @@ async fn test_insert_transaction_with_invalid_index_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -127,11 +113,7 @@ async fn test_insert_transaction_with_invalid_index_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -157,7 +139,6 @@ async fn test_insert_transaction_with_proposal_transaction_already_exists_error(
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -165,11 +146,7 @@ async fn test_insert_transaction_with_proposal_transaction_already_exists_error(
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -197,57 +174,11 @@ async fn test_insert_transaction_with_proposal_transaction_already_exists_error(
 }
 
 #[tokio::test]
-async fn test_insert_transaction_with_invalid_hold_up_time_error() {
-    // Arrange
-    let mut governance_test = GovernanceProgramTest::start_new().await;
-
-    let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
-
-    let mut config = governance_test.get_default_governance_config();
-
-    config.min_transaction_hold_up_time = 100;
-
-    let token_owner_record_cookie = governance_test
-        .with_community_token_deposit(&realm_cookie)
-        .await
-        .unwrap();
-
-    let mut governance_cookie = governance_test
-        .with_governance_using_config(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-            &config,
-        )
-        .await
-        .unwrap();
-
-    let mut proposal_cookie = governance_test
-        .with_proposal(&token_owner_record_cookie, &mut governance_cookie)
-        .await
-        .unwrap();
-
-    // Act
-    let err = governance_test
-        .with_nop_transaction(&mut proposal_cookie, &token_owner_record_cookie, 0, None)
-        .await
-        .err()
-        .unwrap();
-
-    // Assert
-    assert_eq!(
-        err,
-        GovernanceError::TransactionHoldUpTimeBelowRequiredMin.into()
-    );
-}
-#[tokio::test]
 async fn test_insert_transaction_with_not_editable_proposal_error() {
     // Arrange
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -255,11 +186,7 @@ async fn test_insert_transaction_with_not_editable_proposal_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -288,7 +215,6 @@ async fn test_insert_transaction_with_owner_or_delegate_must_sign_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let mut token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -296,11 +222,7 @@ async fn test_insert_transaction_with_owner_or_delegate_must_sign_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -336,7 +258,6 @@ async fn test_insert_transaction_with_invalid_governance_for_proposal_error() {
     let mut governance_test = GovernanceProgramTest::start_new().await;
 
     let realm_cookie = governance_test.with_realm().await;
-    let governed_account_cookie = governance_test.with_governed_account().await;
 
     let token_owner_record_cookie = governance_test
         .with_community_token_deposit(&realm_cookie)
@@ -344,11 +265,7 @@ async fn test_insert_transaction_with_invalid_governance_for_proposal_error() {
         .unwrap();
 
     let mut governance_cookie = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 
@@ -357,15 +274,11 @@ async fn test_insert_transaction_with_invalid_governance_for_proposal_error() {
         .await
         .unwrap();
 
-    // Try to maliciously use a different governance account to use with the proposal
-    let governed_account_cookie2 = governance_test.with_governed_account().await;
+    // Try to maliciously use a different governance account to use with the
+    // proposal
 
     let governance_cookie2 = governance_test
-        .with_governance(
-            &realm_cookie,
-            &governed_account_cookie2,
-            &token_owner_record_cookie,
-        )
+        .with_governance(&realm_cookie, &token_owner_record_cookie)
         .await
         .unwrap();
 

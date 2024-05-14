@@ -1,4 +1,4 @@
-#![allow(clippy::integer_arithmetic)]
+#![allow(clippy::arithmetic_side_effects)]
 //! Defines PreciseNumber, a U256 wrapper with float-like operations
 
 use crate::uint::U256;
@@ -9,7 +9,8 @@ type InnerUint = U256;
 /// The representation of the number one as a precise number as 10^12
 pub const ONE: u128 = 1_000_000_000_000;
 
-/// Struct encapsulating a fixed-point number that allows for decimal calculations
+/// Struct encapsulating a fixed-point number that allows for decimal
+/// calculations
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreciseNumber {
     /// Wrapper over the inner value, which is multiplied by ONE
@@ -28,7 +29,7 @@ fn zero() -> InnerUint {
 
 impl PreciseNumber {
     /// Correction to apply to avoid truncation errors on division.  Since
-    /// integer operations will always floor the result, we artifically bump it
+    /// integer operations will always floor the result, we artificially bump it
     /// up by one half to get the expect result.
     fn rounding_correction() -> InnerUint {
         InnerUint::from(ONE / 2)
@@ -36,7 +37,7 @@ impl PreciseNumber {
 
     /// Desired precision for the correction factor applied during each
     /// iteration of checked_pow_approximation.  Once the correction factor is
-    /// smaller than this number, or we reach the maxmium number of iterations,
+    /// smaller than this number, or we reach the maximum number of iterations,
     /// the calculation ends.
     fn precision() -> InnerUint {
         InnerUint::from(100)
@@ -61,7 +62,7 @@ impl PreciseNumber {
 
     /// Maximum base allowed when calculating exponents in checked_pow_fraction
     /// and checked_pow_approximation.  The calculation use a Taylor Series
-    /// approxmation around 1, which converges for bases between 0 and 2.  See
+    /// approximation around 1, which converges for bases between 0 and 2.  See
     /// https://en.wikipedia.org/wiki/Binomial_series#Conditions_for_convergence
     /// for more information.
     fn max_pow_base() -> InnerUint {
@@ -179,7 +180,8 @@ impl PreciseNumber {
         Some(Self { value })
     }
 
-    /// Performs a subtraction, returning the result and whether the result is negative
+    /// Performs a subtraction, returning the result and whether the result is
+    /// negative
     pub fn unsigned_sub(&self, rhs: &Self) -> (Self, bool) {
         match self.value.checked_sub(rhs.value) {
             None => {
@@ -348,7 +350,8 @@ impl PreciseNumber {
     }
 
     /// Approximate the square root using Newton's method.  Based on testing,
-    /// this provides a precision of 11 digits for inputs between 0 and u128::MAX
+    /// this provides a precision of 11 digits for inputs between 0 and
+    /// u128::MAX
     pub fn sqrt(&self) -> Option<Self> {
         if self.less_than(&Self::minimum_sqrt_base())
             || self.greater_than(&Self::maximum_sqrt_base())
@@ -366,8 +369,7 @@ impl PreciseNumber {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use proptest::prelude::*;
+    use {super::*, proptest::prelude::*};
 
     fn check_pow_approximation(base: InnerUint, exponent: InnerUint, expected: InnerUint) {
         let precision = InnerUint::from(5_000_000); // correct to at least 3 decimal places

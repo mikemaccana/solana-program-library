@@ -1,15 +1,17 @@
 //! ProgramMetadata Account
 
-use borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
-use solana_program::{
-    account_info::AccountInfo, clock::Slot, program_error::ProgramError,
-    program_pack::IsInitialized, pubkey::Pubkey,
+use {
+    crate::state::enums::GovernanceAccountType,
+    borsh::{BorshDeserialize, BorshSchema, BorshSerialize},
+    solana_program::{
+        account_info::AccountInfo, clock::Slot, program_error::ProgramError,
+        program_pack::IsInitialized, pubkey::Pubkey,
+    },
+    spl_governance_tools::account::{get_account_data, AccountMaxSize},
 };
-use spl_governance_tools::account::{get_account_data, AccountMaxSize};
 
-use crate::state::enums::GovernanceAccountType;
-
-/// Program metadata account. It stores information about the particular SPL-Governance program instance
+/// Program metadata account. It stores information about the particular
+/// SPL-Governance program instance
 #[derive(Clone, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub struct ProgramMetadata {
     /// Governance account type
@@ -70,7 +72,7 @@ mod test {
             version: "111.122.155".to_string(),
         };
 
-        let size = program_metadata_data.try_to_vec().unwrap().len();
+        let size = borsh::to_vec(&program_metadata_data).unwrap().len();
 
         assert_eq!(program_metadata_data.get_max_size(), Some(size));
     }

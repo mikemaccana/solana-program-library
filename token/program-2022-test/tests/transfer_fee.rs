@@ -10,8 +10,11 @@ use {
     },
     spl_token_2022::{
         error::TokenError,
-        extension::transfer_fee::{
-            TransferFee, TransferFeeAmount, TransferFeeConfig, MAX_FEE_BASIS_POINTS,
+        extension::{
+            transfer_fee::{
+                TransferFee, TransferFeeAmount, TransferFeeConfig, MAX_FEE_BASIS_POINTS,
+            },
+            BaseStateWithExtensions,
         },
         instruction,
     },
@@ -276,9 +279,14 @@ async fn set_fee() {
         .unwrap();
 
     // warp to first normal slot to easily calculate epochs
-    let epoch_schedule = context.context.lock().await.genesis_config().epoch_schedule;
-    let first_normal_slot = epoch_schedule.first_normal_slot;
-    let slots_per_epoch = epoch_schedule.slots_per_epoch;
+    let (first_normal_slot, slots_per_epoch) = {
+        let context = context.context.lock().await;
+        (
+            context.genesis_config().epoch_schedule.first_normal_slot,
+            context.genesis_config().epoch_schedule.slots_per_epoch,
+        )
+    };
+
     context
         .context
         .lock()
@@ -1298,8 +1306,8 @@ async fn max_withdraw_withheld_tokens_from_accounts() {
         ..
     } = create_mint_with_accounts(alice_amount).await;
 
-    // withdraw from max accounts, which is around 35: 1 mint, 1 destination, 1 authority,
-    // 32 accounts
+    // withdraw from max accounts, which is around 35: 1 mint, 1 destination, 1
+    // authority, 32 accounts
     // see https://docs.solana.com/proposals/transactions-v2#problem
     let destination = Keypair::new();
     token

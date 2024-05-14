@@ -1,11 +1,16 @@
+#[cfg(feature = "serde-traits")]
+use serde::{Deserialize, Serialize};
 use {
     crate::{
         error::TokenError,
         extension::{Extension, ExtensionType},
-        pod::*,
     },
     bytemuck::{Pod, Zeroable},
     solana_program::{clock::Epoch, entrypoint::ProgramResult},
+    spl_pod::{
+        optional_keys::OptionalNonZeroPubkey,
+        primitives::{PodU16, PodU64},
+    },
     std::{
         cmp,
         convert::{TryFrom, TryInto},
@@ -24,6 +29,8 @@ const ONE_IN_BASIS_POINTS: u128 = MAX_FEE_BASIS_POINTS as u128;
 
 /// Transfer fee information
 #[repr(C)]
+#[cfg_attr(feature = "serde-traits", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde-traits", serde(rename_all = "camelCase"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct TransferFee {
     /// First epoch where the transfer fee takes effect
@@ -37,13 +44,15 @@ pub struct TransferFee {
 impl TransferFee {
     /// Calculate ceiling-division
     ///
-    /// Ceiling-division `ceil[ dividend / divisor ]` can be represented as a floor-division
-    /// `floor[ dividend + (divisor - 1) / divisor ]`
-    fn ceil_div(dividend: u128, divisor: u128) -> Option<u128> {
-        dividend
-            .checked_add(divisor)?
+    /// Ceiling-division
+    ///     `ceil[ numerator / denominator ]`
+    /// can be represented as a floor-division
+    ///     `floor[ (numerator + denominator - 1) / denominator]`
+    fn ceil_div(numerator: u128, denominator: u128) -> Option<u128> {
+        numerator
+            .checked_add(denominator)?
             .checked_sub(1)?
-            .checked_div(divisor)
+            .checked_div(denominator)
     }
 
     /// Calculate the transfer fee
@@ -66,34 +75,39 @@ impl TransferFee {
         pre_fee_amount.checked_sub(self.calculate_fee(pre_fee_amount)?)
     }
 
-    /// Calculate the transfer amount that will result in a specified net transfer amount.
+    /// Calculate the transfer amount that will result in a specified net
+    /// transfer amount.
     ///
-    /// The original transfer amount may not always be unique due to rounding. In this case, the
-    /// smaller amount will be chosen.
-    /// e.g. Both transfer amount 10, 11 with 10% fee rate results in net transfer amount of 9. In
-    /// this case, 10 will be chosen.
+    /// The original transfer amount may not always be unique due to rounding.
+    /// In this case, the smaller amount will be chosen.
+    /// e.g. Both transfer amount 10, 11 with 10% fee rate results in net
+    /// transfer amount of 9. In this case, 10 will be chosen.
     /// e.g. Fee rate is 100%. In this case, 0 will be chosen.
     ///
-    /// The original transfer amount may not always exist on large net transfer amounts due to
-    /// overflow. In this case, `None` is returned.
+    /// The original transfer amount may not always exist on large net transfer
+    /// amounts due to overflow. In this case, `None` is returned.
     /// e.g. The net fee amount is `u64::MAX` with a positive fee rate.
     pub fn calculate_pre_fee_amount(&self, post_fee_amount: u64) -> Option<u64> {
         let maximum_fee = u64::from(self.maximum_fee);
         let transfer_fee_basis_points = u16::from(self.transfer_fee_basis_points) as u128;
-        if transfer_fee_basis_points == 0 {
-            Some(post_fee_amount)
-        } else if transfer_fee_basis_points == ONE_IN_BASIS_POINTS || post_fee_amount == 0 {
-            Some(0)
-        } else {
-            let numerator = (post_fee_amount as u128).checked_mul(ONE_IN_BASIS_POINTS)?;
-            let denominator = ONE_IN_BASIS_POINTS.checked_sub(transfer_fee_basis_points)?;
-            let raw_pre_fee_amount = Self::ceil_div(numerator, denominator)?;
+        match (transfer_fee_basis_points, post_fee_amount) {
+            // no fee, same amount
+            (0, _) => Some(post_fee_amount),
+            // 0 zero out, 0 in
+            (_, 0) => Some(0),
+            // 100%, cap at max fee
+            (ONE_IN_BASIS_POINTS, _) => maximum_fee.checked_add(post_fee_amount),
+            _ => {
+                let numerator = (post_fee_amount as u128).checked_mul(ONE_IN_BASIS_POINTS)?;
+                let denominator = ONE_IN_BASIS_POINTS.checked_sub(transfer_fee_basis_points)?;
+                let raw_pre_fee_amount = Self::ceil_div(numerator, denominator)?;
 
-            if raw_pre_fee_amount.checked_sub(post_fee_amount as u128)? >= maximum_fee as u128 {
-                post_fee_amount.checked_add(maximum_fee)
-            } else {
-                // should return `None` if `pre_fee_amount` overflows
-                u64::try_from(raw_pre_fee_amount).ok()
+                if raw_pre_fee_amount.checked_sub(post_fee_amount as u128)? >= maximum_fee as u128 {
+                    post_fee_amount.checked_add(maximum_fee)
+                } else {
+                    // should return `None` if `pre_fee_amount` overflows
+                    u64::try_from(raw_pre_fee_amount).ok()
+                }
             }
         }
     }
@@ -107,13 +121,16 @@ impl TransferFee {
 
 /// Transfer fee extension data for mints.
 #[repr(C)]
+#[cfg_attr(feature = "serde-traits", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde-traits", serde(rename_all = "camelCase"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct TransferFeeConfig {
     /// Optional authority to set the fee
     pub transfer_fee_config_authority: OptionalNonZeroPubkey,
     /// Withdraw from mint instructions must be signed by this key
     pub withdraw_withheld_authority: OptionalNonZeroPubkey,
-    /// Withheld transfer fee tokens that have been moved to the mint for withdrawal
+    /// Withheld transfer fee tokens that have been moved to the mint for
+    /// withdrawal
     pub withheld_amount: PodU64,
     /// Older transfer fee, used if the current epoch < new_transfer_fee.epoch
     pub older_transfer_fee: TransferFee,
@@ -145,6 +162,8 @@ impl Extension for TransferFeeConfig {
 
 /// Transfer fee extension data for accounts.
 #[repr(C)]
+#[cfg_attr(feature = "serde-traits", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde-traits", serde(rename_all = "camelCase"))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct TransferFeeAmount {
     /// Amount withheld during transfers, to be harvested to the mint
@@ -173,13 +192,13 @@ pub(crate) mod test {
 
     pub(crate) fn test_transfer_fee_config() -> TransferFeeConfig {
         TransferFeeConfig {
-            transfer_fee_config_authority: OptionalNonZeroPubkey::try_from(Some(Pubkey::new(
-                &[10; 32],
-            )))
+            transfer_fee_config_authority: OptionalNonZeroPubkey::try_from(Some(
+                Pubkey::new_from_array([10; 32]),
+            ))
             .unwrap(),
-            withdraw_withheld_authority: OptionalNonZeroPubkey::try_from(Some(Pubkey::new(
-                &[11; 32],
-            )))
+            withdraw_withheld_authority: OptionalNonZeroPubkey::try_from(Some(
+                Pubkey::new_from_array([11; 32]),
+            ))
             .unwrap(),
             withheld_amount: PodU64::from(u64::MAX),
             older_transfer_fee: TransferFee {
@@ -341,6 +360,33 @@ pub(crate) mod test {
                 .calculate_inverse_fee(maximum_fee * one - maximum_fee - 1)
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn calculate_pre_fee_amount_edge_cases() {
+        let maximum_fee = 5_000;
+        let transfer_fee = TransferFee {
+            epoch: PodU64::from(0),
+            maximum_fee: PodU64::from(maximum_fee),
+            transfer_fee_basis_points: PodU16::from(u16::try_from(ONE_IN_BASIS_POINTS).unwrap()),
+        };
+
+        // 0 zero out, 0 in
+        assert_eq!(0, transfer_fee.calculate_pre_fee_amount(0).unwrap());
+
+        // cap at max fee
+        assert_eq!(
+            1 + maximum_fee,
+            transfer_fee.calculate_pre_fee_amount(1).unwrap()
+        );
+
+        // no fee same amount
+        let transfer_fee = TransferFee {
+            epoch: PodU64::from(0),
+            maximum_fee: PodU64::from(maximum_fee),
+            transfer_fee_basis_points: PodU16::from(0),
+        };
+        assert_eq!(1, transfer_fee.calculate_pre_fee_amount(1).unwrap());
     }
 
     #[test]

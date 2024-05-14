@@ -1,16 +1,18 @@
-use solana_program::{instruction::Instruction, pubkey::Pubkey};
-use solana_sdk::signature::Keypair;
-use spl_governance::state::{
-    governance::GovernanceV2, native_treasury::NativeTreasury, program_metadata::ProgramMetadata,
-    proposal::ProposalV2, proposal_transaction::ProposalTransactionV2, realm::RealmV2,
-    realm_config::RealmConfigAccount, signatory_record::SignatoryRecordV2,
-    token_owner_record::TokenOwnerRecordV2, vote_record::VoteRecordV2,
+use {
+    solana_program::{clock::UnixTimestamp, instruction::Instruction, pubkey::Pubkey},
+    solana_sdk::signature::Keypair,
+    spl_governance::state::{
+        governance::GovernanceV2, native_treasury::NativeTreasury,
+        program_metadata::ProgramMetadata, proposal::ProposalV2, proposal_deposit::ProposalDeposit,
+        proposal_transaction::ProposalTransactionV2, realm::RealmV2,
+        realm_config::RealmConfigAccount, signatory_record::SignatoryRecordV2,
+        token_owner_record::TokenOwnerRecordV2, vote_record::VoteRecordV2,
+    },
+    spl_governance_addin_api::{
+        max_voter_weight::MaxVoterWeightRecord, voter_weight::VoterWeightRecord,
+    },
+    spl_governance_test_sdk::tools::clone_keypair,
 };
-
-use spl_governance_addin_api::{
-    max_voter_weight::MaxVoterWeightRecord, voter_weight::VoterWeightRecord,
-};
-use spl_governance_test_sdk::tools::clone_keypair;
 
 pub trait AccountCookie {
     fn get_address(&self) -> Pubkey;
@@ -33,18 +35,6 @@ pub struct RealmCookie {
     pub realm_authority: Option<Keypair>,
 
     pub realm_config: RealmConfigCookie,
-}
-
-impl RealmCookie {
-    pub fn get_mint_authority(&self, governing_token_mint: &Pubkey) -> &Keypair {
-        if *governing_token_mint == self.account.community_mint {
-            &self.community_mint_authority
-        } else if Some(*governing_token_mint) == self.account.config.council_mint {
-            self.council_mint_authority.as_ref().unwrap()
-        } else {
-            panic!("Invalid governing_token_mint")
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -105,8 +95,7 @@ impl AccountCookie for GovernedProgramCookie {
 #[derive(Debug)]
 pub struct GovernedMintCookie {
     pub address: Pubkey,
-    pub mint_authority: Keypair,
-    pub transfer_mint_authority: bool,
+    pub mint_authority: Pubkey,
 }
 
 impl AccountCookie for GovernedMintCookie {
@@ -116,25 +105,13 @@ impl AccountCookie for GovernedMintCookie {
 }
 
 #[derive(Debug)]
-pub struct GovernedTokenCookie {
+pub struct GovernedTokenAccountCookie {
     pub address: Pubkey,
-    pub token_owner: Keypair,
-    pub transfer_token_owner: bool,
+    pub token_account_owner: Pubkey,
     pub token_mint: Pubkey,
 }
 
-impl AccountCookie for GovernedTokenCookie {
-    fn get_address(&self) -> Pubkey {
-        self.address
-    }
-}
-
-#[derive(Debug)]
-pub struct GovernedAccountCookie {
-    pub address: Pubkey,
-}
-
-impl AccountCookie for GovernedAccountCookie {
+impl AccountCookie for GovernedTokenAccountCookie {
     fn get_address(&self) -> Pubkey {
         self.address
     }
@@ -154,13 +131,21 @@ pub struct ProposalCookie {
 
     pub realm: Pubkey,
     pub proposal_owner: Pubkey,
+
+    pub proposal_deposit: ProposalDepositCookie,
+}
+
+#[derive(Debug)]
+pub struct ProposalDepositCookie {
+    pub address: Pubkey,
+    pub account: ProposalDeposit,
 }
 
 #[derive(Debug)]
 pub struct SignatoryRecordCookie {
     pub address: Pubkey,
     pub account: SignatoryRecordV2,
-    pub signatory: Keypair,
+    pub signatory: Option<Keypair>,
 }
 
 #[derive(Debug)]
@@ -198,4 +183,16 @@ pub struct ProgramMetadataCookie {
 pub struct NativeTreasuryCookie {
     pub address: Pubkey,
     pub account: NativeTreasury,
+}
+
+#[derive(Debug)]
+pub struct TokenOwnerRecordLockCookie {
+    pub authority: Pubkey,
+    pub lock_id: u8,
+    pub expiry: Option<UnixTimestamp>,
+}
+
+#[derive(Debug)]
+pub struct TokenOwnerRecordLockAuthorityCookie {
+    pub authority: Keypair,
 }

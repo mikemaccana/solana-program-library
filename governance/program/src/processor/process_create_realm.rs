@@ -1,28 +1,28 @@
 //! Program state processor
 
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::Sysvar,
-};
-use spl_governance_tools::account::create_and_serialize_account_signed;
-
-use crate::{
-    error::GovernanceError,
-    state::{
-        enums::GovernanceAccountType,
-        realm::{
-            assert_valid_realm_config_args, get_governing_token_holding_address_seeds,
-            get_realm_address_seeds, RealmConfig, RealmConfigArgs, RealmV2,
+use {
+    crate::{
+        error::GovernanceError,
+        state::{
+            enums::GovernanceAccountType,
+            realm::{
+                assert_valid_realm_config_args, get_governing_token_holding_address_seeds,
+                get_realm_address_seeds, RealmConfig, RealmConfigArgs, RealmV2,
+            },
+            realm_config::{
+                get_realm_config_address_seeds, resolve_governing_token_config, RealmConfigAccount,
+            },
         },
-        realm_config::{
-            get_realm_config_address_seeds, resolve_governing_token_config, RealmConfigAccount,
-            Reserved110,
-        },
+        tools::{spl_token::create_spl_token_account_signed, structs::Reserved110},
     },
-    tools::spl_token::create_spl_token_account_signed,
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        entrypoint::ProgramResult,
+        pubkey::Pubkey,
+        rent::Rent,
+        sysvar::Sysvar,
+    },
+    spl_governance_tools::account::create_and_serialize_account_signed,
 };
 
 /// Processes CreateRealm instruction
@@ -88,19 +88,21 @@ pub fn process_create_realm(
         None
     };
 
-    // Create and serialzie RealmConfig
+    // Create and serialize RealmConfig
     let realm_config_info = next_account_info(account_info_iter)?; // 10
 
     // 11, 12
     let community_token_config = resolve_governing_token_config(
         account_info_iter,
         &realm_config_args.community_token_config_args,
+        None,
     )?;
 
     // 13, 14
     let council_token_config = resolve_governing_token_config(
         account_info_iter,
         &realm_config_args.council_token_config_args,
+        None,
     )?;
 
     let realm_config_data = RealmConfigAccount {
@@ -119,6 +121,7 @@ pub fn process_create_realm(
         program_id,
         system_info,
         rent,
+        0,
     )?;
 
     // Create and serialize Realm
@@ -139,7 +142,7 @@ pub fn process_create_realm(
             legacy1: 0,
             legacy2: 0,
         },
-        voting_proposal_count: 0,
+        legacy1: 0,
         reserved_v2: [0; 128],
     };
 
@@ -151,6 +154,7 @@ pub fn process_create_realm(
         program_id,
         system_info,
         rent,
+        0,
     )?;
 
     Ok(())

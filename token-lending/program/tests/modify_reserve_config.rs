@@ -1,23 +1,25 @@
-#![allow(clippy::integer_arithmetic)]
+#![allow(clippy::arithmetic_side_effects)]
 #![cfg(feature = "test-sbf")]
 
 mod helpers;
 
-use helpers::*;
-use solana_program::pubkey::Pubkey;
-use solana_program_test::*;
-use solana_sdk::{
-    instruction::InstructionError,
-    signature::{read_keypair_file, Keypair, Signer},
-    transaction::{Transaction, TransactionError},
-};
-use spl_token_lending::{
-    error::LendingError,
-    instruction::modify_reserve_config,
-    processor::process_instruction,
-    state::{
-        InitLendingMarketParams, LendingMarket, ReserveConfig, ReserveFees,
-        INITIAL_COLLATERAL_RATIO,
+use {
+    helpers::*,
+    solana_program::pubkey::Pubkey,
+    solana_program_test::*,
+    solana_sdk::{
+        instruction::InstructionError,
+        signature::{read_keypair_file, Keypair, Signer},
+        transaction::{Transaction, TransactionError},
+    },
+    spl_token_lending::{
+        error::LendingError,
+        instruction::modify_reserve_config,
+        processor::process_instruction,
+        state::{
+            InitLendingMarketParams, LendingMarket, ReserveConfig, ReserveFees,
+            INITIAL_COLLATERAL_RATIO,
+        },
     },
 };
 
@@ -302,9 +304,10 @@ async fn owner_of_different_lending_market_cannot_change_reserve_config() {
 #[tokio::test]
 // Right owner, wrong lending market
 async fn correct_owner_providing_wrong_lending_market_fails() {
-    // When the correct owner of the lending market and reserve provides, perhaps inadvertently,
-    // a lending market that is different from the given reserve's corresponding lending market,
-    // then the transaction to modify the current reserve config should fail.
+    // When the correct owner of the lending market and reserve provides, perhaps
+    // inadvertently, a lending market that is different from the given
+    // reserve's corresponding lending market, then the transaction to modify
+    // the current reserve config should fail.
     let mut test = ProgramTest::new(
         "spl_token_lending",
         spl_token_lending::id(),
@@ -364,7 +367,9 @@ async fn correct_owner_providing_wrong_lending_market_fails() {
             new_config,
             sol_test_reserve.pubkey,
             other_lending_market.pubkey,
-            lending_market.owner.pubkey(), //lending_market.owner == other_lending_market.owner, defined by `add_lending_market`
+            // lending_market.owner == other_lending_market.owner, defined by
+            // `add_lending_market`
+            lending_market.owner.pubkey(),
         )],
         Some(&payer.pubkey()),
     );

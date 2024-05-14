@@ -1,13 +1,12 @@
-#![allow(clippy::integer_arithmetic)]
+#![allow(clippy::arithmetic_side_effects)]
 #![cfg(feature = "test-sbf")]
 
 mod helpers;
 
 use {
-    borsh::BorshSerialize,
     helpers::*,
     solana_program::{
-        borsh::try_from_slice_unchecked,
+        borsh1::try_from_slice_unchecked,
         hash::Hash,
         instruction::{AccountMeta, Instruction},
     },
@@ -27,7 +26,7 @@ use {
 
 async fn setup() -> (BanksClient, Keypair, Hash, StakePoolAccounts, Keypair) {
     let (mut banks_client, payer, recent_blockhash) = program_test().start().await;
-    let stake_pool_accounts = StakePoolAccounts::new();
+    let stake_pool_accounts = StakePoolAccounts::default();
     stake_pool_accounts
         .initialize_stake_pool(
             &mut banks_client,
@@ -112,7 +111,6 @@ async fn fail_wrong_manager() {
         Some(&payer.pubkey()),
     );
     transaction.sign(&[&payer, &new_authority], recent_blockhash);
-    #[allow(clippy::useless_conversion)] // Remove during upgrade to 1.10
     let transaction_error = banks_client
         .process_transaction(transaction)
         .await
@@ -137,9 +135,10 @@ async fn fail_without_signature() {
     let (mut banks_client, payer, recent_blockhash, stake_pool_accounts, new_authority) =
         setup().await;
 
-    let data = instruction::StakePoolInstruction::SetFundingAuthority(FundingType::StakeDeposit)
-        .try_to_vec()
-        .unwrap();
+    let data = borsh::to_vec(&instruction::StakePoolInstruction::SetFundingAuthority(
+        FundingType::StakeDeposit,
+    ))
+    .unwrap();
     let accounts = vec![
         AccountMeta::new(stake_pool_accounts.stake_pool.pubkey(), false),
         AccountMeta::new_readonly(stake_pool_accounts.manager.pubkey(), false),
@@ -153,7 +152,6 @@ async fn fail_without_signature() {
 
     let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer.pubkey()));
     transaction.sign(&[&payer], recent_blockhash);
-    #[allow(clippy::useless_conversion)] // Remove during upgrade to 1.10
     let transaction_error = banks_client
         .process_transaction(transaction)
         .await

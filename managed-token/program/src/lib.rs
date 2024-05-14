@@ -1,12 +1,14 @@
 solana_program::declare_id!("mTok58Lg4YfcmwqyrDHpf7ogp599WRhzb6PxjaBqAxS");
 
-use borsh::BorshDeserialize;
-use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg, program::invoke,
-    program_error::ProgramError, program_pack::Pack, pubkey::Pubkey, rent::Rent,
-    system_instruction, sysvar::Sysvar,
+use {
+    borsh::BorshDeserialize,
+    solana_program::{
+        account_info::AccountInfo, entrypoint::ProgramResult, msg, program::invoke,
+        program_error::ProgramError, program_pack::Pack, pubkey::Pubkey, rent::Rent,
+        system_instruction, sysvar::Sysvar,
+    },
+    spl_associated_token_account::instruction::create_associated_token_account,
 };
-use spl_associated_token_account::instruction::create_associated_token_account;
 
 #[track_caller]
 #[inline(always)]
@@ -23,9 +25,11 @@ pub fn assert_with_msg(v: bool, err: impl Into<ProgramError>, msg: &str) -> Prog
 pub mod accounts;
 pub mod instruction;
 pub mod token;
-use accounts::{Burn, Close, InitializeAccount, InitializeMint, Mint, Transfer};
-use instruction::ManagedTokenInstruction;
-use token::{burn, close, freeze, initialize_mint, mint_to, thaw, transfer};
+use {
+    accounts::{Approve, Burn, Close, InitializeAccount, InitializeMint, Mint, Revoke, Transfer},
+    instruction::ManagedTokenInstruction,
+    token::{approve, burn, close, freeze, initialize_mint, mint_to, revoke, thaw, transfer},
+};
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -85,6 +89,14 @@ pub fn process_instruction(
         ManagedTokenInstruction::CloseAccount => {
             msg!("ManagedTokenInstruction::CloseAccount");
             process_close(accounts)
+        }
+        ManagedTokenInstruction::Approve { amount } => {
+            msg!("ManagedTokenInstruction::Approve");
+            process_approve(accounts, amount)
+        }
+        ManagedTokenInstruction::Revoke => {
+            msg!("ManagedTokenInstruction::Revoke");
+            process_revoke(accounts)
         }
     }
 }
@@ -219,4 +231,35 @@ pub fn process_close(accounts: &[AccountInfo]) -> ProgramResult {
     let seeds = get_authority_seeds_checked(upstream_authority.key, freeze_authority.key)?;
     thaw(freeze_authority, mint, token_account, token_program, &seeds)?;
     close(token_account, dst_account, owner, token_program)
+}
+
+pub fn process_approve(accounts: &[AccountInfo], amount: u64) -> ProgramResult {
+    let Approve {
+        mint,
+        token_account,
+        owner,
+        upstream_authority,
+        delegate,
+        freeze_authority,
+        token_program,
+    } = Approve::load(accounts)?;
+    let seeds = get_authority_seeds_checked(upstream_authority.key, freeze_authority.key)?;
+    thaw(freeze_authority, mint, token_account, token_program, &seeds)?;
+    approve(token_account, owner, delegate, token_program, amount)?;
+    freeze(freeze_authority, mint, token_account, token_program, &seeds)
+}
+
+pub fn process_revoke(accounts: &[AccountInfo]) -> ProgramResult {
+    let Revoke {
+        mint,
+        token_account,
+        owner,
+        upstream_authority,
+        freeze_authority,
+        token_program,
+    } = Revoke::load(accounts)?;
+    let seeds = get_authority_seeds_checked(upstream_authority.key, freeze_authority.key)?;
+    thaw(freeze_authority, mint, token_account, token_program, &seeds)?;
+    revoke(token_account, owner, token_program)?;
+    freeze(freeze_authority, mint, token_account, token_program, &seeds)
 }

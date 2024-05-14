@@ -16,13 +16,22 @@ use {
     },
 };
 
+/// Simplified version of the `Pack` trait which only gives the size of the
+/// packed struct. Useful when a function doesn't need a type to implement all
+/// of `Pack`, but a size is still needed.
+pub trait PackedSizeOf {
+    /// The packed size of the struct
+    const SIZE_OF: usize;
+}
+
 /// Mint data.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Mint {
-    /// Optional authority used to mint new tokens. The mint authority may only be provided during
-    /// mint creation. If no mint authority is present then the mint has a fixed supply and no
-    /// further tokens may be minted.
+    /// Optional authority used to mint new tokens. The mint authority may only
+    /// be provided during mint creation. If no mint authority is present
+    /// then the mint has a fixed supply and no further tokens may be
+    /// minted.
     pub mint_authority: COption<Pubkey>,
     /// Total supply of tokens.
     pub supply: u64,
@@ -85,6 +94,9 @@ impl Pack for Mint {
         pack_coption_key(freeze_authority, freeze_authority_dst);
     }
 }
+impl PackedSizeOf for Mint {
+    const SIZE_OF: usize = Self::LEN;
+}
 
 /// Account data.
 #[repr(C)]
@@ -101,9 +113,10 @@ pub struct Account {
     pub delegate: COption<Pubkey>,
     /// The account's state
     pub state: AccountState,
-    /// If is_some, this is a native token, and the value logs the rent-exempt reserve. An Account
-    /// is required to be rent-exempt, so the value is used by the Processor to ensure that wrapped
-    /// SOL accounts do not drop below this threshold.
+    /// If is_some, this is a native token, and the value logs the rent-exempt
+    /// reserve. An Account is required to be rent-exempt, so the value is
+    /// used by the Processor to ensure that wrapped SOL accounts do not
+    /// drop below this threshold.
     pub is_native: COption<u64>,
     /// The amount delegated
     pub delegated_amount: u64,
@@ -119,7 +132,8 @@ impl Account {
     pub fn is_native(&self) -> bool {
         self.is_native.is_some()
     }
-    /// Checks if a token Account's owner is the system_program or the incinerator
+    /// Checks if a token Account's owner is the system_program or the
+    /// incinerator
     pub fn is_owned_by_system_program_or_incinerator(&self) -> bool {
         solana_program::system_program::check_id(&self.owner)
             || solana_program::incinerator::check_id(&self.owner)
@@ -181,25 +195,24 @@ impl Pack for Account {
         pack_coption_key(close_authority, close_authority_dst);
     }
 }
+impl PackedSizeOf for Account {
+    const SIZE_OF: usize = Self::LEN;
+}
 
 /// Account state.
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, IntoPrimitive, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, IntoPrimitive, TryFromPrimitive)]
 pub enum AccountState {
     /// Account is not yet initialized
+    #[default]
     Uninitialized,
-    /// Account is initialized; the account owner and/or delegate may perform permitted operations
-    /// on this account
+    /// Account is initialized; the account owner and/or delegate may perform
+    /// permitted operations on this account
     Initialized,
-    /// Account has been frozen by the mint freeze authority. Neither the account owner nor
-    /// the delegate are able to perform operations on this account.
+    /// Account has been frozen by the mint freeze authority. Neither the
+    /// account owner nor the delegate are able to perform operations on
+    /// this account.
     Frozen,
-}
-
-impl Default for AccountState {
-    fn default() -> Self {
-        AccountState::Uninitialized
-    }
 }
 
 /// Multisignature data.
@@ -238,7 +251,7 @@ impl Pack for Multisig {
             signers: [Pubkey::new_from_array([0u8; 32]); MAX_SIGNERS],
         };
         for (src, dst) in signers_flat.chunks(32).zip(result.signers.iter_mut()) {
-            *dst = Pubkey::new(src);
+            *dst = Pubkey::try_from(src).map_err(|_| ProgramError::InvalidAccountData)?;
         }
         Ok(result)
     }
@@ -254,6 +267,9 @@ impl Pack for Multisig {
             dst_array.copy_from_slice(src.as_ref());
         }
     }
+}
+impl PackedSizeOf for Multisig {
+    const SIZE_OF: usize = Self::LEN;
 }
 
 // Helpers
@@ -304,20 +320,16 @@ impl GenericTokenAccount for Account {
     fn valid_account_data(account_data: &[u8]) -> bool {
         // Use spl_token::state::Account::valid_account_data once possible
         account_data.len() == Account::LEN && is_initialized_account(account_data)
-            || (account_data.len() >= Account::LEN
+            || (account_data.len() > Account::LEN
                 && account_data.len() != Multisig::LEN
-                && ACCOUNTTYPE_ACCOUNT
-                    == *account_data
-                        .get(spl_token::state::Account::get_packed_len())
-                        .unwrap_or(&(AccountType::Uninitialized as u8))
+                && ACCOUNTTYPE_ACCOUNT == account_data[Account::LEN]
                 && is_initialized_account(account_data))
     }
 }
 
 #[cfg(test)]
 pub(crate) mod test {
-    use super::*;
-    use crate::generic_token_account::ACCOUNT_INITIALIZED_INDEX;
+    use {super::*, crate::generic_token_account::ACCOUNT_INITIALIZED_INDEX};
 
     pub const TEST_MINT: Mint = Mint {
         mint_authority: COption::Some(Pubkey::new_from_array([1; 32])),
@@ -349,6 +361,39 @@ pub(crate) mod test {
         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0,
         0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
         7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+    ];
+    pub const TEST_MULTISIG: Multisig = Multisig {
+        m: 1,
+        n: 11,
+        is_initialized: true,
+        signers: [
+            Pubkey::new_from_array([1; 32]),
+            Pubkey::new_from_array([2; 32]),
+            Pubkey::new_from_array([3; 32]),
+            Pubkey::new_from_array([4; 32]),
+            Pubkey::new_from_array([5; 32]),
+            Pubkey::new_from_array([6; 32]),
+            Pubkey::new_from_array([7; 32]),
+            Pubkey::new_from_array([8; 32]),
+            Pubkey::new_from_array([9; 32]),
+            Pubkey::new_from_array([10; 32]),
+            Pubkey::new_from_array([11; 32]),
+        ],
+    };
+    pub const TEST_MULTISIG_SLICE: &[u8] = &[
+        1, 11, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+        4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+        5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+        6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
     ];
 
     #[test]
@@ -391,12 +436,7 @@ pub(crate) mod test {
         assert_eq!(unpacked, check);
 
         // Multisig
-        let check = Multisig {
-            m: 1,
-            n: 2,
-            is_initialized: true,
-            signers: [Pubkey::new(&[3; 32]); MAX_SIGNERS],
-        };
+        let check = TEST_MULTISIG;
         let mut packed = vec![0; Multisig::get_packed_len() + 1];
         assert_eq!(
             Err(ProgramError::InvalidAccountData),
@@ -409,21 +449,7 @@ pub(crate) mod test {
         );
         let mut packed = vec![0; Multisig::get_packed_len()];
         Multisig::pack(check, &mut packed).unwrap();
-        let expect = vec![
-            1, 2, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3,
-        ];
+        let expect = TEST_MULTISIG_SLICE;
         assert_eq!(packed, expect);
         let unpacked = Multisig::unpack(&packed).unwrap();
         assert_eq!(unpacked, check);
@@ -454,22 +480,22 @@ pub(crate) mod test {
         let result = Account::unpack_account_owner(&src);
         assert_eq!(result, Option::None);
 
-        // Account data length > account data size with a valid extension and initialized,
-        // expect some key returned
+        // Account data length > account data size with a valid extension and
+        // initialized, expect some key returned
         let mut src: [u8; Account::LEN + 5] = [0; Account::LEN + 5];
         src[Account::LEN] = AccountType::Account as u8;
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Initialized as u8;
         let result = Account::unpack_account_owner(&src);
         assert!(result.is_some());
 
-        // Account data length > account data size with a valid extension but uninitialized,
-        // expect None
+        // Account data length > account data size with a valid extension but
+        // uninitialized, expect None
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Uninitialized as u8;
         let result = Account::unpack_account_owner(&src);
         assert!(result.is_none());
 
-        // Account data length is multi-sig data size with a valid extension and initalized,
-        // expect none
+        // Account data length is multi-sig data size with a valid extension and
+        // initialized, expect none
         let mut src: [u8; Multisig::LEN] = [0; Multisig::LEN];
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Initialized as u8;
         src[Account::LEN] = AccountType::Account as u8;
@@ -502,22 +528,22 @@ pub(crate) mod test {
         let result = Account::unpack_account_mint(&src);
         assert_eq!(result, Option::None);
 
-        // Account data length > account data size with a valid extension and initalized,
-        // expect some key returned
+        // Account data length > account data size with a valid extension and
+        // initialized, expect some key returned
         let mut src: [u8; Account::LEN + 5] = [0; Account::LEN + 5];
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Initialized as u8;
         src[Account::LEN] = AccountType::Account as u8;
         let result = Account::unpack_account_mint(&src);
         assert!(result.is_some());
 
-        // Account data length > account data size with a valid extension but uninitalized,
-        // expect none
+        // Account data length > account data size with a valid extension but
+        // uninitialized, expect none
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Uninitialized as u8;
         let result = Account::unpack_account_mint(&src);
         assert!(result.is_none());
 
-        // Account data length is multi-sig data size with a valid extension and initalized,
-        // expect none
+        // Account data length is multi-sig data size with a valid extension and
+        // initialized, expect none
         let mut src: [u8; Multisig::LEN] = [0; Multisig::LEN];
         src[ACCOUNT_INITIALIZED_INDEX] = AccountState::Initialized as u8;
         src[Account::LEN] = AccountType::Account as u8;

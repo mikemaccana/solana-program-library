@@ -1,7 +1,9 @@
 use {
     async_trait::async_trait,
-    solana_client::nonblocking::rpc_client::RpcClient,
+    solana_banks_interface::BanksTransactionResultWithSimulation,
     solana_program_test::{tokio::sync::Mutex, BanksClient, ProgramTestContext},
+    solana_rpc_client::nonblocking::rpc_client::RpcClient,
+    solana_rpc_client_api::response::RpcSimulateTransactionResult,
     solana_sdk::{
         account::Account, hash::Hash, pubkey::Pubkey, signature::Signature,
         transaction::Transaction,
@@ -16,14 +18,34 @@ pub trait SendTransaction {
     type Output;
 }
 
-/// Extends basic `SendTransaction` trait with function `send` where client is `&mut BanksClient`.
-/// Required for `ProgramBanksClient`.
+/// Basic trait for simulating transactions in a validator.
+pub trait SimulateTransaction {
+    type SimulationOutput: SimulationResult;
+}
+
+/// Trait for the output of a simulation
+pub trait SimulationResult {
+    fn get_compute_units_consumed(&self) -> ProgramClientResult<u64>;
+}
+
+/// Extends basic `SendTransaction` trait with function `send` where client is
+/// `&mut BanksClient`. Required for `ProgramBanksClient`.
 pub trait SendTransactionBanksClient: SendTransaction {
     fn send<'a>(
         &self,
         client: &'a mut BanksClient,
         transaction: Transaction,
     ) -> BoxFuture<'a, ProgramClientResult<Self::Output>>;
+}
+
+/// Extends basic `SimulateTransaction` trait with function `simulation` where
+/// client is `&mut BanksClient`. Required for `ProgramBanksClient`.
+pub trait SimulateTransactionBanksClient: SimulateTransaction {
+    fn simulate<'a>(
+        &self,
+        client: &'a mut BanksClient,
+        transaction: Transaction,
+    ) -> BoxFuture<'a, ProgramClientResult<Self::SimulationOutput>>;
 }
 
 /// Send transaction to validator using `BanksClient::process_transaction`.
@@ -49,14 +71,52 @@ impl SendTransactionBanksClient for ProgramBanksClientProcessTransaction {
     }
 }
 
-/// Extends basic `SendTransaction` trait with function `send` where client is `&RpcClient`.
-/// Required for `ProgramRpcClient`.
+impl SimulationResult for BanksTransactionResultWithSimulation {
+    fn get_compute_units_consumed(&self) -> ProgramClientResult<u64> {
+        self.simulation_details
+            .as_ref()
+            .map(|x| x.units_consumed)
+            .ok_or("No simulation results found".into())
+    }
+}
+
+impl SimulateTransaction for ProgramBanksClientProcessTransaction {
+    type SimulationOutput = BanksTransactionResultWithSimulation;
+}
+
+impl SimulateTransactionBanksClient for ProgramBanksClientProcessTransaction {
+    fn simulate<'a>(
+        &self,
+        client: &'a mut BanksClient,
+        transaction: Transaction,
+    ) -> BoxFuture<'a, ProgramClientResult<Self::SimulationOutput>> {
+        Box::pin(async move {
+            client
+                .simulate_transaction(transaction)
+                .await
+                .map_err(Into::into)
+        })
+    }
+}
+
+/// Extends basic `SendTransaction` trait with function `send` where client is
+/// `&RpcClient`. Required for `ProgramRpcClient`.
 pub trait SendTransactionRpc: SendTransaction {
     fn send<'a>(
         &self,
         client: &'a RpcClient,
         transaction: &'a Transaction,
     ) -> BoxFuture<'a, ProgramClientResult<Self::Output>>;
+}
+
+/// Extends basic `SimulateTransaction` trait with function `simulate` where
+/// client is `&RpcClient`. Required for `ProgramRpcClient`.
+pub trait SimulateTransactionRpc: SimulateTransaction {
+    fn simulate<'a>(
+        &self,
+        client: &'a RpcClient,
+        transaction: &'a Transaction,
+    ) -> BoxFuture<'a, ProgramClientResult<Self::SimulationOutput>>;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -66,6 +126,7 @@ pub struct ProgramRpcClientSendTransaction;
 pub enum RpcClientResponse {
     Signature(Signature),
     Transaction(Transaction),
+    Simulation(RpcSimulateTransactionResult),
 }
 
 impl SendTransaction for ProgramRpcClientSendTransaction {
@@ -92,6 +153,40 @@ impl SendTransactionRpc for ProgramRpcClientSendTransaction {
     }
 }
 
+impl SimulationResult for RpcClientResponse {
+    fn get_compute_units_consumed(&self) -> ProgramClientResult<u64> {
+        match self {
+            // `Transaction` is the result of an offline simulation. The error
+            // should be properly handled by a caller that supports offline
+            // signing
+            Self::Signature(_) | Self::Transaction(_) => Err("Not a simulation result".into()),
+            Self::Simulation(simulation_result) => simulation_result
+                .units_consumed
+                .ok_or("No simulation results found".into()),
+        }
+    }
+}
+
+impl SimulateTransaction for ProgramRpcClientSendTransaction {
+    type SimulationOutput = RpcClientResponse;
+}
+
+impl SimulateTransactionRpc for ProgramRpcClientSendTransaction {
+    fn simulate<'a>(
+        &self,
+        client: &'a RpcClient,
+        transaction: &'a Transaction,
+    ) -> BoxFuture<'a, ProgramClientResult<Self::SimulationOutput>> {
+        Box::pin(async move {
+            client
+                .simulate_transaction(transaction)
+                .await
+                .map(|r| RpcClientResponse::Simulation(r.value))
+                .map_err(Into::into)
+        })
+    }
+}
+
 pub type ProgramClientError = Box<dyn std::error::Error + Send + Sync>;
 pub type ProgramClientResult<T> = Result<T, ProgramClientError>;
 
@@ -99,7 +194,7 @@ pub type ProgramClientResult<T> = Result<T, ProgramClientError>;
 #[async_trait]
 pub trait ProgramClient<ST>
 where
-    ST: SendTransaction,
+    ST: SendTransaction + SimulateTransaction,
 {
     async fn get_minimum_balance_for_rent_exemption(
         &self,
@@ -111,6 +206,11 @@ where
     async fn send_transaction(&self, transaction: &Transaction) -> ProgramClientResult<ST::Output>;
 
     async fn get_account(&self, address: Pubkey) -> ProgramClientResult<Option<Account>>;
+
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ProgramClientResult<ST::SimulationOutput>;
 }
 
 enum ProgramBanksClientContext {
@@ -163,7 +263,7 @@ impl<ST> ProgramBanksClient<ST> {
 #[async_trait]
 impl<ST> ProgramClient<ST> for ProgramBanksClient<ST>
 where
-    ST: SendTransactionBanksClient + Send + Sync,
+    ST: SendTransactionBanksClient + SimulateTransactionBanksClient + Send + Sync,
 {
     async fn get_minimum_balance_for_rent_exemption(
         &self,
@@ -189,6 +289,17 @@ where
         self.run_in_lock(|client| {
             let transaction = transaction.clone();
             self.send.send(client, transaction)
+        })
+        .await
+    }
+
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ProgramClientResult<ST::SimulationOutput> {
+        self.run_in_lock(|client| {
+            let transaction = transaction.clone();
+            self.send.simulate(client, transaction)
         })
         .await
     }
@@ -222,7 +333,7 @@ impl<ST> ProgramRpcClient<ST> {
 #[async_trait]
 impl<ST> ProgramClient<ST> for ProgramRpcClient<ST>
 where
-    ST: SendTransactionRpc + Send + Sync,
+    ST: SendTransactionRpc + SimulateTransactionRpc + Send + Sync,
 {
     async fn get_minimum_balance_for_rent_exemption(
         &self,
@@ -240,6 +351,13 @@ where
 
     async fn send_transaction(&self, transaction: &Transaction) -> ProgramClientResult<ST::Output> {
         self.send.send(&self.client, transaction).await
+    }
+
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ProgramClientResult<ST::SimulationOutput> {
+        self.send.simulate(&self.client, transaction).await
     }
 
     async fn get_account(&self, address: Pubkey) -> ProgramClientResult<Option<Account>> {
@@ -275,7 +393,10 @@ impl<ST> ProgramOfflineClient<ST> {
 #[async_trait]
 impl<ST> ProgramClient<ST> for ProgramOfflineClient<ST>
 where
-    ST: SendTransaction<Output = RpcClientResponse> + Send + Sync,
+    ST: SendTransaction<Output = RpcClientResponse>
+        + SimulateTransaction<SimulationOutput = RpcClientResponse>
+        + Send
+        + Sync,
 {
     async fn get_minimum_balance_for_rent_exemption(
         &self,
@@ -289,6 +410,13 @@ where
     }
 
     async fn send_transaction(&self, transaction: &Transaction) -> ProgramClientResult<ST::Output> {
+        Ok(RpcClientResponse::Transaction(transaction.clone()))
+    }
+
+    async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> ProgramClientResult<ST::SimulationOutput> {
         Ok(RpcClientResponse::Transaction(transaction.clone()))
     }
 

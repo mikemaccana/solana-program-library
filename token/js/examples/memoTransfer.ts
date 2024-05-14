@@ -7,13 +7,17 @@ import {
     Transaction,
     LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
+import { createMemoInstruction } from '@solana/spl-memo';
 import {
+    createAssociatedTokenAccount,
     createMint,
     createEnableRequiredMemoTransfersInstruction,
     createInitializeAccountInstruction,
+    createTransferInstruction,
     disableRequiredMemoTransfers,
     enableRequiredMemoTransfers,
     getAccountLen,
+    mintTo,
     ExtensionType,
     TOKEN_2022_PROGRAM_ID,
 } from '../src';
@@ -23,7 +27,7 @@ import {
 
     const payer = Keypair.generate();
     const airdropSignature = await connection.requestAirdrop(payer.publicKey, 2 * LAMPORTS_PER_SOL);
-    await connection.confirmTransaction(airdropSignature);
+    await connection.confirmTransaction({ signature: airdropSignature, ...(await connection.getLatestBlockhash()) });
 
     const mintAuthority = Keypair.generate();
     const decimals = 9;
@@ -61,4 +65,20 @@ import {
     await disableRequiredMemoTransfers(connection, payer, destination, owner, [], undefined, TOKEN_2022_PROGRAM_ID);
 
     await enableRequiredMemoTransfers(connection, payer, destination, owner, [], undefined, TOKEN_2022_PROGRAM_ID);
+
+    const sourceTokenAccount = await createAssociatedTokenAccount(
+        connection,
+        payer,
+        mint,
+        payer.publicKey,
+        undefined,
+        TOKEN_2022_PROGRAM_ID
+    );
+    await mintTo(connection, payer, mint, sourceTokenAccount, mintAuthority, 100, [], undefined, TOKEN_2022_PROGRAM_ID);
+
+    const transferTransaction = new Transaction().add(
+        createMemoInstruction('Hello, memo-transfer!', [payer.publicKey]),
+        createTransferInstruction(sourceTokenAccount, destination, payer.publicKey, 100, [], TOKEN_2022_PROGRAM_ID)
+    );
+    await sendAndConfirmTransaction(connection, transferTransaction, [payer], undefined);
 })();

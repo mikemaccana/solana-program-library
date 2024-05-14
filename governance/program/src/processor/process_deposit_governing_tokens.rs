@@ -1,29 +1,30 @@
 //! Program state processor
 
-use solana_program::{
-    account_info::{next_account_info, AccountInfo},
-    entrypoint::ProgramResult,
-    pubkey::Pubkey,
-    rent::Rent,
-    sysvar::Sysvar,
-};
-use spl_governance_tools::account::create_and_serialize_account_signed;
-
-use crate::{
-    error::GovernanceError,
-    state::{
-        enums::GovernanceAccountType,
-        realm::get_realm_data,
-        realm_config::get_realm_config_data_for_realm,
-        token_owner_record::{
-            get_token_owner_record_address_seeds, get_token_owner_record_data_for_seeds,
-            TokenOwnerRecordV2,
+use {
+    crate::{
+        error::GovernanceError,
+        state::{
+            enums::GovernanceAccountType,
+            realm::get_realm_data,
+            realm_config::get_realm_config_data_for_realm,
+            token_owner_record::{
+                get_token_owner_record_address_seeds, get_token_owner_record_data_for_seeds,
+                TokenOwnerRecordV2, TOKEN_OWNER_RECORD_LAYOUT_VERSION,
+            },
+        },
+        tools::spl_token::{
+            get_spl_token_mint, is_spl_token_account, is_spl_token_mint, mint_spl_tokens_to,
+            transfer_spl_tokens,
         },
     },
-    tools::spl_token::{
-        get_spl_token_mint, is_spl_token_account, is_spl_token_mint, mint_spl_tokens_to,
-        transfer_spl_tokens,
+    solana_program::{
+        account_info::{next_account_info, AccountInfo},
+        entrypoint::ProgramResult,
+        pubkey::Pubkey,
+        rent::Rent,
+        sysvar::Sysvar,
     },
+    spl_governance_tools::account::create_and_serialize_account_signed,
 };
 
 /// Processes DepositGoverningTokens instruction
@@ -91,7 +92,8 @@ pub fn process_deposit_governing_tokens(
     );
 
     if token_owner_record_info.data_is_empty() {
-        // Deposited tokens can only be withdrawn by the owner so let's make sure the owner signed the transaction
+        // Deposited tokens can only be withdrawn by the owner so let's make sure the
+        // owner signed the transaction
         if !governing_token_owner_info.is_signer {
             return Err(GovernanceError::GoverningTokenOwnerMustSign.into());
         }
@@ -104,10 +106,11 @@ pub fn process_deposit_governing_tokens(
             governing_token_mint,
             governance_delegate: None,
             unrelinquished_votes_count: 0,
-            total_votes_count: 0,
             outstanding_proposal_count: 0,
-            reserved: [0; 7],
-            reserved_v2: [0; 128],
+            version: TOKEN_OWNER_RECORD_LAYOUT_VERSION,
+            reserved: [0; 6],
+            reserved_v2: [0; 124],
+            locks: vec![],
         };
 
         create_and_serialize_account_signed(
@@ -118,6 +121,7 @@ pub fn process_deposit_governing_tokens(
             program_id,
             system_info,
             &rent,
+            0,
         )?;
     } else {
         let mut token_owner_record_data = get_token_owner_record_data_for_seeds(
@@ -131,7 +135,7 @@ pub fn process_deposit_governing_tokens(
             .checked_add(amount)
             .unwrap();
 
-        token_owner_record_data.serialize(&mut *token_owner_record_info.data.borrow_mut())?;
+        token_owner_record_data.serialize(&mut token_owner_record_info.data.borrow_mut()[..])?;
     }
 
     Ok(())

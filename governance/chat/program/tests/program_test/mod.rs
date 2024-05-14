@@ -1,34 +1,34 @@
-use std::str::FromStr;
-
-use solana_program::{program_error::ProgramError, pubkey::Pubkey};
-use solana_program_test::{processor, ProgramTest};
-
-use solana_sdk::{signature::Keypair, signer::Signer};
-use spl_governance::{
-    instruction::{
-        create_governance, create_proposal, create_realm, create_token_owner_record,
-        deposit_governing_tokens,
+use {
+    self::cookies::TokenOwnerRecordCookie,
+    crate::program_test::cookies::{ChatMessageCookie, ProposalCookie},
+    solana_program::{program_error::ProgramError, pubkey::Pubkey},
+    solana_program_test::{processor, ProgramTest},
+    solana_sdk::{signature::Keypair, signer::Signer},
+    spl_governance::{
+        instruction::{
+            create_governance, create_proposal, create_realm, create_token_owner_record,
+            deposit_governing_tokens,
+        },
+        state::{
+            enums::{MintMaxVoterWeightSource, VoteThreshold},
+            governance::{
+                get_governance_address, GovernanceConfig, DEFAULT_DEPOSIT_EXEMPT_PROPOSAL_COUNT,
+            },
+            proposal::{get_proposal_address, VoteType},
+            realm::{get_realm_address, GoverningTokenConfigAccountArgs},
+            realm_config::GoverningTokenType,
+            token_owner_record::get_token_owner_record_address,
+        },
     },
-    state::{
-        enums::{MintMaxVoterWeightSource, VoteThreshold},
-        governance::{get_governance_address, GovernanceConfig},
-        proposal::{get_proposal_address, VoteType},
-        realm::{get_realm_address, GoverningTokenConfigAccountArgs},
-        realm_config::GoverningTokenType,
-        token_owner_record::get_token_owner_record_address,
+    spl_governance_addin_mock::instruction::setup_voter_weight_record,
+    spl_governance_chat::{
+        instruction::post_message,
+        processor::process_instruction,
+        state::{ChatMessage, GovernanceChatAccountType, MessageBody},
     },
+    spl_governance_test_sdk::{addins::ensure_addin_mock_is_built, ProgramTestBench},
+    std::str::FromStr,
 };
-use spl_governance_addin_mock::instruction::setup_voter_weight_record;
-use spl_governance_chat::{
-    instruction::post_message,
-    processor::process_instruction,
-    state::{ChatMessage, GovernanceChatAccountType, MessageBody},
-};
-use spl_governance_test_sdk::{addins::ensure_addin_mock_is_built, ProgramTestBench};
-
-use crate::program_test::cookies::{ChatMessageCookie, ProposalCookie};
-
-use self::cookies::TokenOwnerRecordCookie;
 
 pub mod cookies;
 
@@ -183,20 +183,21 @@ impl GovernanceChatProgramTest {
         }
 
         // Create Governance
-        let governed_account_address = Pubkey::new_unique();
+        let governance_seed = Pubkey::new_unique();
 
         let governance_config = GovernanceConfig {
-            min_community_weight_to_create_proposal: 5,
-            min_council_weight_to_create_proposal: 2,
-            min_transaction_hold_up_time: 10,
-            max_voting_time: 10,
             community_vote_threshold: VoteThreshold::YesVotePercentage(60),
+            min_community_weight_to_create_proposal: 5,
+            transactions_hold_up_time: 10,
+            voting_base_time: 10,
             community_vote_tipping: spl_governance::state::enums::VoteTipping::Strict,
             council_vote_threshold: VoteThreshold::YesVotePercentage(10),
             council_veto_vote_threshold: VoteThreshold::YesVotePercentage(50),
+            min_council_weight_to_create_proposal: 2,
             council_vote_tipping: spl_governance::state::enums::VoteTipping::Strict,
             community_veto_vote_threshold: VoteThreshold::YesVotePercentage(55),
-            reserved: [0; 3],
+            voting_cool_off_time: 1,
+            deposit_exempt_proposal_count: DEFAULT_DEPOSIT_EXEMPT_PROPOSAL_COUNT,
         };
 
         let token_owner_record_address = get_token_owner_record_address(
@@ -234,7 +235,7 @@ impl GovernanceChatProgramTest {
         let create_governance_ix = create_governance(
             &self.governance_program_id,
             &realm_address,
-            Some(&governed_account_address),
+            &governance_seed,
             &token_owner_record_address,
             &self.bench.payer.pubkey(),
             &token_owner.pubkey(),
@@ -252,14 +253,15 @@ impl GovernanceChatProgramTest {
         let governance_address = get_governance_address(
             &self.governance_program_id,
             &realm_address,
-            &governed_account_address,
+            &governance_seed,
         );
 
         let proposal_name = "Proposal #1".to_string();
         let description_link = "Proposal Description".to_string();
         let options = vec!["Yes".to_string()];
-        let proposal_index: u32 = 0;
+
         let use_deny_option = true;
+        let proposal_seed = Pubkey::new_unique();
 
         let create_proposal_ix = create_proposal(
             &self.governance_program_id,
@@ -275,7 +277,7 @@ impl GovernanceChatProgramTest {
             VoteType::SingleChoice,
             options,
             use_deny_option,
-            proposal_index,
+            &proposal_seed,
         );
 
         self.bench
@@ -287,7 +289,7 @@ impl GovernanceChatProgramTest {
             &self.governance_program_id,
             &governance_address,
             &governing_token_mint_keypair.pubkey(),
-            &proposal_index.to_le_bytes(),
+            &proposal_seed,
         );
 
         ProposalCookie {
